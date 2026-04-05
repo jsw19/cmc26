@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "CheckMyCar",
+    "slug": "checkmycar",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "checkmycar",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/images/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f0f0f"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.checkmycar.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "CheckMyCar uses the camera to photograph your vehicle for damage analysis.",
+        "NSPhotoLibraryUsageDescription": "CheckMyCar accesses your photo library to analyze vehicle images."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#0f0f0f"
+      },
+      "package": "com.checkmycar.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "CheckMyCar uses the camera to photograph your vehicle for damage analysis."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
