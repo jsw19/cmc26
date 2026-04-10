@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -15,6 +15,7 @@ import {
 import Constants from 'expo-constants';
 import { useInspection } from '../src/context/InspectionContext';
 import { analyzeVehicleImage } from '../src/sdk/analyze';
+import { analyzeVehicleImageLocally } from '../src/sdk/analyzeLocal';
 import type { VehiclePart } from '../src/sdk/types';
 
 const PART_GUIDES: Record<string, { title: string; hint: string }> = {
@@ -51,6 +52,7 @@ export default function CameraScreen() {
   const { vehiclePart = 'unknown' } = useLocalSearchParams<{ vehiclePart: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [analyzing, setAnalyzing] = useState(false);
+  const [useLocal, setUseLocal] = useState(false);
   const cameraRef = useRef<CameraView>(null);
   const { addResult, setPendingResult } = useInspection();
 
@@ -90,21 +92,26 @@ export default function CameraScreen() {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Get API key from env
-      const apiKey = Constants.expoConfig?.extra?.anthropicApiKey as string | undefined
-        ?? process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+      let result;
+      if (useLocal) {
+        result = await analyzeVehicleImageLocally(base64, savedUri, {
+          vehiclePart: vehiclePart as VehiclePart,
+        });
+      } else {
+        const apiKey = Constants.expoConfig?.extra?.anthropicApiKey as string | undefined
+          ?? process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
 
-      if (!apiKey) {
-        Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');
-        setAnalyzing(false);
-        return;
+        if (!apiKey) {
+          Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');
+          setAnalyzing(false);
+          return;
+        }
+
+        result = await analyzeVehicleImage(base64, savedUri, {
+          apiKey,
+          vehiclePart: vehiclePart as VehiclePart,
+        });
       }
-
-      // Call Claude
-      const result = await analyzeVehicleImage(base64, savedUri, {
-        apiKey,
-        vehiclePart: vehiclePart as VehiclePart,
-      });
 
       await addResult(result);
       setPendingResult(result);
@@ -165,11 +172,33 @@ export default function CameraScreen() {
         {/* Bottom controls */}
         <View style={styles.bottomBar}>
           <Text style={styles.hint}>{guide.hint}</Text>
+          {/* Mode toggle */}
+          <View style={styles.modeToggle}>
+            <TouchableOpacity
+              style={[styles.modeBtn, !useLocal && styles.modeBtnActive]}
+              onPress={() => setUseLocal(false)}
+            >
+              <Text style={[styles.modeBtnText, !useLocal && styles.modeBtnTextActive]}>
+                AI Scan
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeBtn, useLocal && styles.modeBtnActive]}
+              onPress={() => setUseLocal(true)}
+            >
+              <Text style={[styles.modeBtnText, useLocal && styles.modeBtnTextActive]}>
+                Local Scan
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.controls}>
             {analyzing ? (
               <View style={styles.analyzingContainer}>
                 <ActivityIndicator size="large" color="#3b82f6" />
-                <Text style={styles.analyzingText}>Analyzing with AI...</Text>
+                <Text style={styles.analyzingText}>
+                  {useLocal ? 'Analysing locally...' : 'Analyzing with AI...'}
+                </Text>
               </View>
             ) : (
               <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
@@ -299,5 +328,28 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 20,
+    padding: 3,
+  },
+  modeBtn: {
+    paddingHorizontal: 18,
+    paddingVertical: 6,
+    borderRadius: 17,
+  },
+  modeBtnActive: {
+    backgroundColor: '#3b82f6',
+  },
+  modeBtnText: {
+    color: '#aaa',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modeBtnTextActive: {
+    color: '#fff',
   },
 });

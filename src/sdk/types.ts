@@ -47,6 +47,11 @@ export interface AnalyzeOptions {
   maxImageDimension?: number;
 }
 
+/** Options for on-device local analysis (no API key required). */
+export interface AnalyzeLocalOptions {
+  vehiclePart?: VehiclePart;
+}
+
 export interface AnalyzeError {
   code: 'API_ERROR' | 'PARSE_ERROR' | 'IMAGE_ERROR' | 'AUTH_ERROR';
   message: string;

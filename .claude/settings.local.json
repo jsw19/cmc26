@@ -4,7 +4,8 @@
       "Bash(cmd.exe:*)",
       "Bash(powershell.exe:*)",
       "Bash(npm install:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(git -C C:/Users/wjsd7/Projects/checkmycar log --oneline --since=\"7 days ago\")"
     ]
   }
 }
