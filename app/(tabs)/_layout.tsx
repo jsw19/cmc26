@@ -35,6 +35,16 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="preowned"
+        options={{
+          title: 'Buy',
+          headerTitle: 'Pre-Owned Guide',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="storefront-outline" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

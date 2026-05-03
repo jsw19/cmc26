@@ -55,6 +55,24 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* Buyer Check entry */}
+        <TouchableOpacity
+          style={styles.buyerCard}
+          activeOpacity={0.8}
+          onPress={() => router.push('/buyercheck')}
+        >
+          <View style={styles.buyerCardIcon}>
+            <Ionicons name="shield-checkmark-outline" size={22} color="#22c55e" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.buyerCardTitle}>Buying a Used Car?</Text>
+            <Text style={styles.buyerCardDesc}>
+              Pre-purchase checklist · Known issues by model · Buyer protection tips
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#444" />
+        </TouchableOpacity>
+
         {/* Tips banner */}
         <View style={styles.tipBanner}>
           <Ionicons name="information-circle-outline" size={18} color="#3b82f6" />
@@ -163,6 +181,36 @@ const styles = StyleSheet.create({
   partDesc: {
     fontSize: 11,
     color: '#666',
+  },
+  buyerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#0d1f0d',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1a3a1a',
+  },
+  buyerCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#14532d33',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buyerCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  buyerCardDesc: {
+    fontSize: 11,
+    color: '#4ade80',
+    marginTop: 2,
+    lineHeight: 15,
   },
   tipBanner: {
     flexDirection: 'row',

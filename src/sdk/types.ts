@@ -29,6 +29,35 @@ export interface DamageItem {
   description: string;
 }
 
+export type VehicleCategory =
+  | 'economy'
+  | 'midsize'
+  | 'suv'
+  | 'truck'
+  | 'luxury'
+  | 'sports'
+  | 'electric';
+
+export interface VehicleInfo {
+  year: number;
+  make: string;
+  model: string;
+  mileage: number;
+  category: VehicleCategory;
+}
+
+export interface TradeInEstimate {
+  vehicleInfo: VehicleInfo;
+  location: LocationInfo;
+  currency: string;
+  currencySymbol: string;
+  tradeInValue: { min: number; max: number };
+  privatePartyValue: { min: number; max: number };
+  conditionLabel: string;
+  factors: string[];
+  disclaimer: string;
+}
+
 export interface InspectionResult {
   id: string;
   timestamp: number;
@@ -38,6 +67,30 @@ export interface InspectionResult {
   overallSeverity: Severity;
   summary: string;
   recommendations: string[];
+  costEstimate?: CostEstimate;
+  vehicleInfo?: VehicleInfo;
+  tradeInEstimate?: TradeInEstimate;
+}
+
+export interface MarketTier {
+  category: VehicleCategory;
+  categoryLabel: string;
+  categoryDescription: string;
+  yearRange: { min: number; max: number };
+  mileageRange: { min: number; max: number };
+  distanceUnit: 'miles' | 'km';
+  priceRange: { min: number; max: number };
+  currency: string;
+  currencySymbol: string;
+  expectation: string;
+}
+
+export interface PreownedGuideResult {
+  location: LocationInfo;
+  currency: string;
+  currencySymbol: string;
+  tiers: MarketTier[];
+  disclaimer: string;
 }
 
 export interface AnalyzeOptions {
@@ -55,4 +108,28 @@ export interface AnalyzeLocalOptions {
 export interface AnalyzeError {
   code: 'API_ERROR' | 'PARSE_ERROR' | 'IMAGE_ERROR' | 'AUTH_ERROR';
   message: string;
+}
+
+export interface LocationInfo {
+  country: string;
+  region?: string;
+  label: string;
+}
+
+export interface RepairCostItem {
+  damageType: DamageType;
+  severity: Severity;
+  description: string;
+  minCost: number;
+  maxCost: number;
+}
+
+export interface CostEstimate {
+  location: LocationInfo;
+  currency: string;
+  currencySymbol: string;
+  items: RepairCostItem[];
+  totalMin: number;
+  totalMax: number;
+  disclaimer: string;
 }

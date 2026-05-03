@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useReducer } from 'react';
 import type { InspectionResult } from '../sdk/types';
-import { deleteInspection, loadHistory, saveInspection } from '../utils/storage';
+import { deleteInspection, loadHistory, saveInspection, updateInspection } from '../utils/storage';
 
 interface State {
   history: InspectionResult[];
@@ -12,6 +12,7 @@ type Action =
   | { type: 'SET_HISTORY'; payload: InspectionResult[] }
   | { type: 'ADD_RESULT'; payload: InspectionResult }
   | { type: 'REMOVE_RESULT'; payload: string }
+  | { type: 'UPDATE_RESULT'; payload: InspectionResult }
   | { type: 'SET_PENDING'; payload: InspectionResult | null }
   | { type: 'SET_LOADING'; payload: boolean };
 
@@ -23,6 +24,8 @@ function reducer(state: State, action: Action): State {
       return { ...state, history: [action.payload, ...state.history] };
     case 'REMOVE_RESULT':
       return { ...state, history: state.history.filter((r) => r.id !== action.payload) };
+    case 'UPDATE_RESULT':
+      return { ...state, history: state.history.map((r) => r.id === action.payload.id ? action.payload : r) };
     case 'SET_PENDING':
       return { ...state, pendingResult: action.payload };
     case 'SET_LOADING':
@@ -33,6 +36,7 @@ function reducer(state: State, action: Action): State {
 interface ContextValue extends State {
   addResult: (result: InspectionResult) => Promise<void>;
   removeResult: (id: string) => Promise<void>;
+  updateResult: (result: InspectionResult) => Promise<void>;
   setPendingResult: (result: InspectionResult | null) => void;
 }
 
@@ -62,12 +66,17 @@ export function InspectionProvider({ children }: { children: React.ReactNode }) 
     dispatch({ type: 'REMOVE_RESULT', payload: id });
   };
 
+  const updateResult = async (result: InspectionResult) => {
+    await updateInspection(result);
+    dispatch({ type: 'UPDATE_RESULT', payload: result });
+  };
+
   const setPendingResult = (result: InspectionResult | null) => {
     dispatch({ type: 'SET_PENDING', payload: result });
   };
 
   return (
-    <InspectionContext.Provider value={{ ...state, addResult, removeResult, setPendingResult }}>
+    <InspectionContext.Provider value={{ ...state, addResult, removeResult, updateResult, setPendingResult }}>
       {children}
     </InspectionContext.Provider>
   );

@@ -21,6 +21,12 @@ export async function deleteInspection(id: string): Promise<void> {
   await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
 }
 
+export async function updateInspection(result: InspectionResult): Promise<void> {
+  const history = await loadHistory();
+  const updated = history.map((r) => (r.id === result.id ? result : r));
+  await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+}
+
 export async function clearHistory(): Promise<void> {
   await AsyncStorage.removeItem(HISTORY_KEY);
 }
