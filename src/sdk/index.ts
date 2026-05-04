@@ -2,6 +2,7 @@ export { analyzeVehicleImage } from './analyze';
 export { analyzeVehicleImageLocally } from './analyzeLocal';
 export { estimateRepairCosts } from './costEstimate';
 export { findPreownedCars } from './preownedGuide';
+export { estimateSellingPrice } from './sellingPrice';
 export { estimateTradeInValue } from './tradeInEstimate';
 export type {
   AnalyzeError,
@@ -13,8 +14,10 @@ export type {
   InspectionResult,
   LocationInfo,
   MarketTier,
+  PlatformListing,
   PreownedGuideResult,
   RepairCostItem,
+  SellingPriceEstimate,
   Severity,
   TradeInEstimate,
   VehicleCategory,

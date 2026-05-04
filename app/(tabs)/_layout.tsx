@@ -45,6 +45,16 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="sell"
+        options={{
+          title: 'Sell',
+          headerTitle: 'Sell Your Car',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pricetag-outline" color={color} size={size} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }

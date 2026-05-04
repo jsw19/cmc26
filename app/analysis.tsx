@@ -20,7 +20,8 @@ import { SeverityBadge } from '../src/components/SeverityBadge';
 import { useInspection } from '../src/context/InspectionContext';
 import { useLocationCostEstimate } from '../src/hooks/useLocationCostEstimate';
 import { useTradeInEstimate } from '../src/hooks/useTradeInEstimate';
-import type { CostEstimate, DamageItem, TradeInEstimate, VehicleCategory } from '../src/sdk/types';
+import { useSellingPrice } from '../src/hooks/useSellingPrice';
+import type { CostEstimate, DamageItem, PlatformListing, SellingPriceEstimate, TradeInEstimate, VehicleCategory } from '../src/sdk/types';
 
 const DAMAGE_ICONS: Record<string, string> = {
   rust: 'warning-outline',
@@ -93,12 +94,14 @@ function VehicleInfoModal({
   onChangeForm,
   onSubmit,
   onClose,
+  submitLabel = 'Get Trade-In Estimate',
 }: {
   visible: boolean;
   form: VehicleForm;
   onChangeForm: (f: VehicleForm) => void;
   onSubmit: () => void;
   onClose: () => void;
+  submitLabel?: string;
 }) {
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -170,7 +173,7 @@ function VehicleInfoModal({
             </View>
 
             <TouchableOpacity style={styles.submitBtn} onPress={onSubmit}>
-              <Text style={styles.submitBtnText}>Get Trade-In Estimate</Text>
+              <Text style={styles.submitBtnText}>{submitLabel}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>
@@ -236,6 +239,128 @@ function TradeInEstimateCard({
   );
 }
 
+function SellingPriceCard({
+  estimate,
+  onEdit,
+}: {
+  estimate: SellingPriceEstimate;
+  onEdit: () => void;
+}) {
+  const [activePlatform, setActivePlatform] = useState<'Facebook Marketplace' | 'Craigslist'>('Facebook Marketplace');
+  const { currencySymbol, vehicleInfo, location, conditionLabel, idealSalePrice, listingPrice, quickSalePrice, negotiationBuffer, platforms, listingTips, factors, disclaimer } = estimate;
+  const fmt = (n: number) => `${currencySymbol}${n.toLocaleString()}`;
+  const platform = platforms.find((p) => p.platform === activePlatform) as PlatformListing;
+
+  return (
+    <View style={styles.sellCard}>
+      <View style={styles.tradeInHeaderRow}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.tradeInVehicle}>
+            {vehicleInfo.year} {vehicleInfo.make} {vehicleInfo.model}
+          </Text>
+          <View style={styles.tradeInMeta}>
+            <Ionicons name="location" size={12} color="#f59e0b" />
+            <Text style={styles.tradeInMetaText}>{location.label}</Text>
+            <Text style={styles.tradeInMetaDot}>·</Text>
+            <Text style={styles.tradeInMetaText}>{conditionLabel}</Text>
+          </View>
+        </View>
+        <TouchableOpacity onPress={onEdit} style={styles.editBtn}>
+          <Ionicons name="pencil-outline" size={15} color="#888" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Price tiers */}
+      <View style={styles.sellPriceGrid}>
+        <View style={styles.sellPriceTier}>
+          <Text style={styles.sellTierLabel}>Quick Sale</Text>
+          <Text style={[styles.sellTierValue, { color: '#f87171' }]}>
+            {fmt(quickSalePrice.min)}
+          </Text>
+          <Text style={styles.sellTierSub}>Price to move fast</Text>
+        </View>
+        <View style={styles.sellPriceDivider} />
+        <View style={styles.sellPriceTier}>
+          <Text style={styles.sellTierLabel}>Ideal Price</Text>
+          <Text style={[styles.sellTierValue, { color: '#4ade80' }]}>
+            {fmt(idealSalePrice.max)}
+          </Text>
+          <Text style={styles.sellTierSub}>What you should get</Text>
+        </View>
+        <View style={styles.sellPriceDivider} />
+        <View style={styles.sellPriceTier}>
+          <Text style={styles.sellTierLabel}>List At</Text>
+          <Text style={[styles.sellTierValue, { color: '#f59e0b' }]}>
+            {fmt(listingPrice.max)}
+          </Text>
+          <Text style={styles.sellTierSub}>{negotiationBuffer}% wiggle room</Text>
+        </View>
+      </View>
+
+      {/* Platform tabs */}
+      <View style={styles.platformTabs}>
+        {(['Facebook Marketplace', 'Craigslist'] as const).map((p) => (
+          <TouchableOpacity
+            key={p}
+            style={[styles.platformTab, activePlatform === p && styles.platformTabActive]}
+            onPress={() => setActivePlatform(p)}
+          >
+            <Ionicons
+              name={p === 'Facebook Marketplace' ? 'logo-facebook' : 'list-outline'}
+              size={13}
+              color={activePlatform === p ? '#fff' : '#666'}
+            />
+            <Text style={[styles.platformTabText, activePlatform === p && styles.platformTabTextActive]}>
+              {p === 'Facebook Marketplace' ? 'FB Marketplace' : 'Craigslist'}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Platform listing price */}
+      <View style={styles.platformPriceRow}>
+        <Text style={styles.platformPriceLabel}>Suggested listing price</Text>
+        <Text style={styles.platformPriceValue}>
+          {fmt(platform.listingPrice.min)} – {fmt(platform.listingPrice.max)}
+        </Text>
+      </View>
+
+      {/* Platform tips */}
+      <View style={styles.sellTipsBox}>
+        {platform.tips.map((tip, i) => (
+          <View key={i} style={styles.sellTipRow}>
+            <Ionicons name="checkmark-circle-outline" size={14} color="#f59e0b" />
+            <Text style={styles.sellTipText}>{tip}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* General listing tips */}
+      <View style={styles.sellGeneralTips}>
+        <Text style={styles.sellGeneralTipsTitle}>Listing Tips</Text>
+        {listingTips.map((tip, i) => (
+          <View key={i} style={styles.factorRow}>
+            <Ionicons name="bulb-outline" size={13} color="#555" />
+            <Text style={styles.factorText}>{tip}</Text>
+          </View>
+        ))}
+      </View>
+
+      {/* Factors */}
+      <View style={styles.factorsBox}>
+        {factors.map((f, i) => (
+          <View key={i} style={styles.factorRow}>
+            <Ionicons name="information-circle-outline" size={13} color="#555" />
+            <Text style={styles.factorText}>{f}</Text>
+          </View>
+        ))}
+      </View>
+
+      <Text style={styles.estimateDisclaimer}>{disclaimer}</Text>
+    </View>
+  );
+}
+
 function DamageCard({ damage }: { damage: DamageItem }) {
   const icon = DAMAGE_ICONS[damage.type] ?? 'ellipse-outline';
   return (
@@ -262,7 +387,9 @@ export default function AnalysisScreen() {
   const { history, removeResult, updateResult } = useInspection();
   const { status: estimateStatus, error: estimateError, getEstimate } = useLocationCostEstimate();
   const { status: tradeInStatus, getEstimate: getTradeInEstimate } = useTradeInEstimate();
+  const { status: sellStatus, getEstimate: getSellingEstimate } = useSellingPrice();
   const [showVehicleModal, setShowVehicleModal] = useState(false);
+  const [modalMode, setModalMode] = useState<'tradeIn' | 'sell'>('tradeIn');
   const [vehicleForm, setVehicleForm] = useState<{
     year: string; make: string; model: string; mileage: string; category: VehicleCategory;
   }>({ year: '', make: '', model: '', mileage: '', category: 'midsize' });
@@ -282,7 +409,7 @@ export default function AnalysisScreen() {
     );
   }
 
-  const openTradeInModal = () => {
+  const openVehicleModal = (mode: 'tradeIn' | 'sell') => {
     if (inspection.vehicleInfo) {
       setVehicleForm({
         year: String(inspection.vehicleInfo.year),
@@ -292,10 +419,11 @@ export default function AnalysisScreen() {
         category: inspection.vehicleInfo.category,
       });
     }
+    setModalMode(mode);
     setShowVehicleModal(true);
   };
 
-  const handleTradeInSubmit = async () => {
+  const handleVehicleModalSubmit = async () => {
     const year = parseInt(vehicleForm.year, 10);
     const mileage = parseInt(vehicleForm.mileage, 10);
     const currentYear = new Date().getFullYear();
@@ -323,10 +451,21 @@ export default function AnalysisScreen() {
       category: vehicleForm.category,
     };
 
-    const existingLocation = inspection.costEstimate?.location ?? inspection.tradeInEstimate?.location;
-    const estimate = await getTradeInEstimate(vehicleInfo, inspection.overallSeverity, existingLocation);
-    if (estimate) {
-      await updateResult({ ...inspection, vehicleInfo, tradeInEstimate: estimate });
+    const existingLocation =
+      inspection.costEstimate?.location ??
+      inspection.tradeInEstimate?.location ??
+      inspection.sellingPriceEstimate?.location;
+
+    if (modalMode === 'sell') {
+      const estimate = await getSellingEstimate(vehicleInfo, inspection.overallSeverity, existingLocation);
+      if (estimate) {
+        await updateResult({ ...inspection, vehicleInfo, sellingPriceEstimate: estimate });
+      }
+    } else {
+      const estimate = await getTradeInEstimate(vehicleInfo, inspection.overallSeverity, existingLocation);
+      if (estimate) {
+        await updateResult({ ...inspection, vehicleInfo, tradeInEstimate: estimate });
+      }
     }
   };
 
@@ -442,11 +581,11 @@ export default function AnalysisScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Trade-In Value</Text>
           {inspection.tradeInEstimate ? (
-            <TradeInEstimateCard estimate={inspection.tradeInEstimate} onEdit={openTradeInModal} />
+            <TradeInEstimateCard estimate={inspection.tradeInEstimate} onEdit={() => openVehicleModal('tradeIn')} />
           ) : (
             <TouchableOpacity
               style={[styles.estimateBtn, styles.tradeInBtn, tradeInStatus === 'loading' && styles.estimateBtnDisabled]}
-              onPress={openTradeInModal}
+              onPress={() => openVehicleModal('tradeIn')}
               disabled={tradeInStatus === 'loading'}
             >
               {tradeInStatus === 'loading' ? (
@@ -455,6 +594,32 @@ export default function AnalysisScreen() {
                 <>
                   <Ionicons name="car-outline" size={18} color="#fff" />
                   <Text style={styles.estimateBtnText}>Get Trade-In Estimate</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Sell on Marketplace */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Sell on Marketplace</Text>
+          {inspection.sellingPriceEstimate ? (
+            <SellingPriceCard
+              estimate={inspection.sellingPriceEstimate}
+              onEdit={() => openVehicleModal('sell')}
+            />
+          ) : (
+            <TouchableOpacity
+              style={[styles.estimateBtn, styles.sellBtn, sellStatus === 'loading' && styles.estimateBtnDisabled]}
+              onPress={() => openVehicleModal('sell')}
+              disabled={sellStatus === 'loading'}
+            >
+              {sellStatus === 'loading' ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <>
+                  <Ionicons name="pricetag-outline" size={18} color="#fff" />
+                  <Text style={styles.estimateBtnText}>Get Selling Price</Text>
                 </>
               )}
             </TouchableOpacity>
@@ -504,8 +669,9 @@ export default function AnalysisScreen() {
         visible={showVehicleModal}
         form={vehicleForm}
         onChangeForm={setVehicleForm}
-        onSubmit={handleTradeInSubmit}
+        onSubmit={handleVehicleModalSubmit}
         onClose={() => setShowVehicleModal(false)}
+        submitLabel={modalMode === 'sell' ? 'Get Selling Price' : 'Get Trade-In Estimate'}
       />
     </SafeAreaView>
   );
@@ -933,5 +1099,124 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+  },
+  sellBtn: {
+    backgroundColor: '#78350f',
+    borderColor: '#92400e',
+  },
+  sellCard: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    gap: 12,
+  },
+  sellPriceGrid: {
+    flexDirection: 'row',
+    backgroundColor: '#111',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  sellPriceTier: {
+    flex: 1,
+    padding: 10,
+    alignItems: 'center',
+    gap: 3,
+  },
+  sellPriceDivider: {
+    width: 1,
+    backgroundColor: '#2a2a2a',
+  },
+  sellTierLabel: {
+    fontSize: 10,
+    color: '#666',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  sellTierValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  sellTierSub: {
+    fontSize: 9,
+    color: '#555',
+    textAlign: 'center',
+  },
+  platformTabs: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  platformTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    backgroundColor: '#111',
+  },
+  platformTabActive: {
+    backgroundColor: '#78350f',
+    borderColor: '#92400e',
+  },
+  platformTabText: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '500',
+  },
+  platformTabTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  platformPriceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#111',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  platformPriceLabel: {
+    fontSize: 12,
+    color: '#888',
+  },
+  platformPriceValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#f59e0b',
+  },
+  sellTipsBox: {
+    gap: 8,
+  },
+  sellTipRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+  },
+  sellTipText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#ccc',
+    lineHeight: 17,
+  },
+  sellGeneralTips: {
+    gap: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#242424',
+    paddingTop: 10,
+  },
+  sellGeneralTipsTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
 });

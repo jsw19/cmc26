@@ -46,6 +46,28 @@ export interface VehicleInfo {
   category: VehicleCategory;
 }
 
+export interface PlatformListing {
+  platform: 'Facebook Marketplace' | 'Craigslist';
+  listingPrice: { min: number; max: number };
+  tips: string[];
+}
+
+export interface SellingPriceEstimate {
+  vehicleInfo: VehicleInfo;
+  location: LocationInfo;
+  currency: string;
+  currencySymbol: string;
+  idealSalePrice: { min: number; max: number };
+  listingPrice: { min: number; max: number };
+  quickSalePrice: { min: number; max: number };
+  negotiationBuffer: number;
+  conditionLabel: string;
+  platforms: PlatformListing[];
+  listingTips: string[];
+  factors: string[];
+  disclaimer: string;
+}
+
 export interface TradeInEstimate {
   vehicleInfo: VehicleInfo;
   location: LocationInfo;
@@ -70,6 +92,7 @@ export interface InspectionResult {
   costEstimate?: CostEstimate;
   vehicleInfo?: VehicleInfo;
   tradeInEstimate?: TradeInEstimate;
+  sellingPriceEstimate?: SellingPriceEstimate;
 }
 
 export interface MarketTier {

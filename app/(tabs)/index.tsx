@@ -73,6 +73,24 @@ export default function HomeScreen() {
           <Ionicons name="chevron-forward" size={18} color="#444" />
         </TouchableOpacity>
 
+        {/* Sell entry */}
+        <TouchableOpacity
+          style={styles.sellCard}
+          activeOpacity={0.8}
+          onPress={() => router.push('/(tabs)/sell')}
+        >
+          <View style={styles.sellCardIcon}>
+            <Ionicons name="pricetag-outline" size={22} color="#f59e0b" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sellCardTitle}>Selling Your Car?</Text>
+            <Text style={styles.sellCardDesc}>
+              FB Marketplace & Craigslist pricing · Negotiation tips · Region-adjusted value
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#444" />
+        </TouchableOpacity>
+
         {/* Tips banner */}
         <View style={styles.tipBanner}>
           <Ionicons name="information-circle-outline" size={18} color="#3b82f6" />
@@ -209,6 +227,36 @@ const styles = StyleSheet.create({
   buyerCardDesc: {
     fontSize: 11,
     color: '#4ade80',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  sellCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#1f1200',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#3a2200',
+  },
+  sellCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#78350f33',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sellCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  sellCardDesc: {
+    fontSize: 11,
+    color: '#f59e0b',
     marginTop: 2,
     lineHeight: 15,
   },

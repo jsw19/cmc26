@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { useRef, useState } from 'react';
@@ -14,16 +15,34 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { analyzeCheckItem, PHOTO_HINTS } from '../src/sdk/analyzeCheckItem';
-import type { CheckItemAnalysis } from '../src/sdk/analyzeCheckItem';
+import { SeverityBadge } from '../src/components/SeverityBadge';
 import { INSPECTION_SYSTEMS } from '../src/data/inspectionChecklist';
 import { ALL_MAKES, getIssuesForModel, getModelsForMake } from '../src/data/modelIssues';
 import type { IssueSeverity } from '../src/data/modelIssues';
+import { analyzeVehicleImage } from '../src/sdk/analyze';
+import { analyzeCheckItem, PHOTO_HINTS } from '../src/sdk/analyzeCheckItem';
+import type { CheckItemAnalysis } from '../src/sdk/analyzeCheckItem';
+import type { InspectionResult, VehiclePart } from '../src/sdk/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'checklist' | 'models' | 'tips';
+type Tab = 'scan' | 'checklist' | 'models' | 'tips';
 type CheckStatus = 'pass' | 'fail' | null;
+
+// ─── Scan parts ───────────────────────────────────────────────────────────────
+
+const SCAN_PARTS: { id: VehiclePart; label: string; icon: string; hint: string }[] = [
+  { id: 'underbody',      label: 'Underbody',       icon: 'layers-outline',                 hint: 'Position below the car — chassis, floor pans, exhaust, brake lines.' },
+  { id: 'front',          label: 'Front',            icon: 'arrow-forward-circle-outline',   hint: 'Capture the full front bumper, hood, headlights, and grille.' },
+  { id: 'rear',           label: 'Rear',             icon: 'arrow-back-circle-outline',      hint: 'Capture the rear bumper, trunk lid, and taillights.' },
+  { id: 'driver_side',    label: 'Driver Side',      icon: 'car-outline',                    hint: 'Stand back to capture the full driver-side panels and doors.' },
+  { id: 'passenger_side', label: 'Passenger Side',   icon: 'car-outline',                    hint: 'Stand back to capture the full passenger-side panels and doors.' },
+  { id: 'engine_bay',     label: 'Engine Bay',       icon: 'settings-outline',               hint: 'Open the hood fully — engine, fluid reservoirs, hoses, and belts.' },
+];
+
+const SEVERITY_COLORS = {
+  none: '#4ade80', minor: '#facc15', moderate: '#fb923c', severe: '#f87171',
+} as const;
 
 // ─── Camera modal ─────────────────────────────────────────────────────────────
 
@@ -148,6 +167,269 @@ function PhotoResultCard({ result }: { result: CheckItemAnalysis }) {
         </View>
       )}
     </View>
+  );
+}
+
+// ─── Scan camera modal ────────────────────────────────────────────────────────
+
+interface ScanCameraModalProps {
+  part: typeof SCAN_PARTS[0];
+  onClose: () => void;
+  onResult: (result: InspectionResult) => void;
+}
+
+function ScanCameraModal({ part, onClose, onResult }: ScanCameraModalProps) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const [analyzing, setAnalyzing] = useState(false);
+  const cameraRef = useRef<CameraView>(null);
+
+  const handleCapture = async () => {
+    if (!cameraRef.current || analyzing) return;
+    setAnalyzing(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      if (!photo?.uri) throw new Error('Failed to capture photo.');
+
+      const resized = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [{ resize: { width: 1024 } }],
+        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+      );
+
+      const filename = `ppi_${part.id}_${Date.now()}.jpg`;
+      const savedUri = `${FileSystem.documentDirectory}inspections/${filename}`;
+      await FileSystem.makeDirectoryAsync(
+        `${FileSystem.documentDirectory}inspections/`,
+        { intermediates: true }
+      );
+      await FileSystem.moveAsync({ from: resized.uri, to: savedUri });
+
+      const base64 = await FileSystem.readAsStringAsync(savedUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const apiKey =
+        (Constants.expoConfig?.extra?.anthropicApiKey as string | undefined)
+        ?? process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+
+      if (!apiKey) {
+        Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');
+        setAnalyzing(false);
+        return;
+      }
+
+      const result = await analyzeVehicleImage(base64, savedUri, { apiKey, vehiclePart: part.id });
+      onResult(result);
+      onClose();
+    } catch (err) {
+      Alert.alert('Analysis Failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  return (
+    <View style={styles.cameraModal}>
+      {!permission ? (
+        <View style={styles.cameraCentered} />
+      ) : !permission.granted ? (
+        <View style={styles.cameraCentered}>
+          <Ionicons name="camera-outline" size={48} color="#666" />
+          <Text style={styles.cameraPermText}>Camera access is required.</Text>
+          <TouchableOpacity style={styles.cameraGrantBtn} onPress={requestPermission}>
+            <Text style={styles.cameraGrantBtnText}>Grant Permission</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <CameraView ref={cameraRef} style={styles.cameraFull} facing="back">
+          <View style={styles.cameraTopBar}>
+            <TouchableOpacity style={styles.cameraCloseBtn} onPress={onClose} disabled={analyzing}>
+              <Ionicons name="close" size={24} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.cameraCheckTitle}>{part.label} Scan</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          {/* Overlay frame */}
+          <View style={styles.scanOverlayContainer}>
+            <View style={styles.scanOverlayFrame}>
+              <View style={[styles.scanCorner, styles.cornerTL]} />
+              <View style={[styles.scanCorner, styles.cornerTR]} />
+              <View style={[styles.scanCorner, styles.cornerBL]} />
+              <View style={[styles.scanCorner, styles.cornerBR]} />
+            </View>
+          </View>
+
+          <View style={styles.cameraBottomBar}>
+            <Text style={styles.cameraHint}>{part.hint}</Text>
+            {analyzing ? (
+              <View style={styles.cameraAnalyzing}>
+                <ActivityIndicator size="large" color="#3b82f6" />
+                <Text style={styles.cameraAnalyzingText}>Analyzing with AI...</Text>
+              </View>
+            ) : (
+              <View style={styles.cameraControls}>
+                <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
+                  <View style={styles.captureBtnInner} />
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </CameraView>
+      )}
+    </View>
+  );
+}
+
+// ─── Inline scan result card ──────────────────────────────────────────────────
+
+function InlineScanResult({
+  part,
+  result,
+  onRescan,
+}: {
+  part: typeof SCAN_PARTS[0];
+  result: InspectionResult;
+  onRescan: () => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <View style={styles.scanResult}>
+      <TouchableOpacity style={styles.scanResultHeader} onPress={() => setExpanded((v) => !v)}>
+        <Ionicons name={part.icon as any} size={16} color="#3b82f6" />
+        <Text style={styles.scanResultPart}>{part.label}</Text>
+        <SeverityBadge severity={result.overallSeverity} size="sm" />
+        <TouchableOpacity onPress={onRescan} style={styles.rescanBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <Ionicons name="camera-outline" size={13} color="#3b82f6" />
+          <Text style={styles.rescanBtnText}>Rescan</Text>
+        </TouchableOpacity>
+        <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={14} color="#555" />
+      </TouchableOpacity>
+
+      {expanded && (
+        <>
+          <Text style={styles.scanResultSummary}>{result.summary}</Text>
+
+          {result.damages.length === 0 ? (
+            <View style={styles.scanNoDamage}>
+              <Ionicons name="checkmark-circle" size={15} color="#4ade80" />
+              <Text style={styles.scanNoDamageText}>No damage detected</Text>
+            </View>
+          ) : (
+            result.damages.map((d, i) => (
+              <View key={i} style={styles.scanDamageRow}>
+                <View style={styles.scanDamageLeft}>
+                  <Text style={styles.scanDamageType}>
+                    {d.type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                  </Text>
+                  <Text style={styles.scanDamageLoc}>{d.location}</Text>
+                  <Text style={styles.scanDamageDesc}>{d.description}</Text>
+                </View>
+                <View style={[styles.scanSeverityPill, { backgroundColor: SEVERITY_COLORS[d.severity] + '22', borderColor: SEVERITY_COLORS[d.severity] + '66' }]}>
+                  <Text style={[styles.scanSeverityText, { color: SEVERITY_COLORS[d.severity] }]}>
+                    {d.severity}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+
+          {result.recommendations.length > 0 && (
+            <View style={styles.scanRecs}>
+              {result.recommendations.map((rec, i) => (
+                <View key={i} style={styles.scanRecRow}>
+                  <Ionicons name="alert-circle-outline" size={12} color="#f59e0b" />
+                  <Text style={styles.scanRecText}>{rec}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </>
+      )}
+    </View>
+  );
+}
+
+// ─── Scan tab ─────────────────────────────────────────────────────────────────
+
+function ScanTab() {
+  const [scanResults, setScanResults] = useState<Partial<Record<VehiclePart, InspectionResult>>>({});
+  const [activePart, setActivePart] = useState<typeof SCAN_PARTS[0] | null>(null);
+
+  const scannedCount = Object.keys(scanResults).length;
+  const problemCount = Object.values(scanResults).filter(
+    (r) => r && (r.overallSeverity === 'moderate' || r.overallSeverity === 'severe')
+  ).length;
+
+  return (
+    <>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabContent}>
+        {/* Summary bar */}
+        <View style={styles.scanSummaryRow}>
+          <Text style={styles.scanSummaryText}>{scannedCount}/{SCAN_PARTS.length} areas scanned</Text>
+          {problemCount > 0 && (
+            <View style={styles.failBadge}>
+              <Ionicons name="warning" size={12} color="#ef4444" />
+              <Text style={styles.failBadgeText}>{problemCount} concern{problemCount > 1 ? 's' : ''}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Part grid */}
+        <View style={styles.scanGrid}>
+          {SCAN_PARTS.map((part) => {
+            const result = scanResults[part.id];
+            return (
+              <TouchableOpacity
+                key={part.id}
+                style={[styles.scanPartCard, result && { borderColor: SEVERITY_COLORS[result.overallSeverity] + '55' }]}
+                onPress={() => setActivePart(part)}
+                activeOpacity={0.75}
+              >
+                <Ionicons name={part.icon as any} size={22} color={result ? SEVERITY_COLORS[result.overallSeverity] : '#3b82f6'} />
+                <Text style={styles.scanPartLabel}>{part.label}</Text>
+                {result ? (
+                  <SeverityBadge severity={result.overallSeverity} size="sm" />
+                ) : (
+                  <Text style={styles.scanPartHint}>Tap to scan</Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Inline results */}
+        {SCAN_PARTS.filter((p) => scanResults[p.id]).map((part) => (
+          <InlineScanResult
+            key={part.id}
+            part={part}
+            result={scanResults[part.id]!}
+            onRescan={() => setActivePart(part)}
+          />
+        ))}
+
+        {scannedCount === 0 && (
+          <View style={styles.emptyHint}>
+            <Ionicons name="camera-outline" size={40} color="#222" />
+            <Text style={styles.emptyHintText}>Tap any area above to start the AI scan</Text>
+          </View>
+        )}
+      </ScrollView>
+
+      {activePart && (
+        <Modal visible animationType="slide" onRequestClose={() => setActivePart(null)}>
+          <ScanCameraModal
+            part={activePart}
+            onClose={() => setActivePart(null)}
+            onResult={(result) => {
+              setScanResults((prev) => ({ ...prev, [activePart.id]: result }));
+              setActivePart(null);
+            }}
+          />
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -400,6 +682,61 @@ function ModelIssuesTab() {
 
 const TIPS_SECTIONS = [
   {
+    title: 'Complete Buying Process (CL / FB Marketplace)',
+    icon: 'list-outline',
+    color: '#3b82f6',
+    items: [
+      '1. Get the VIN before you go anywhere — run it free at vehiclehistory.gov (NMVTIS) and nhtsa.gov/recalls.',
+      '2. Check the market value so you know your ceiling — use this app\'s Sell estimator on the same year/make/model for a private-party reference.',
+      '3. Message the seller: ask why selling, request extra photos of the underbody and engine bay if not shown.',
+      '4. Schedule the meeting — daytime only, bank or DMV parking lot, bring a friend.',
+      '5. Do the AI Scan (this app\'s Scan tab) on all 6 areas before handing over any money.',
+      '6. Test drive at least 15 minutes: cold start, city stop-and-go, highway, hard braking, sharp turns.',
+      '7. OBD2 scan for stored and pending fault codes — a $15 Bluetooth ELM327 from Amazon does this.',
+      '8. Negotiate based on findings: every flagged issue is a legitimate ask for a lower price.',
+      '9. Verify the title is in the SELLER\'S name — not a third party\'s. A third-party seller may not have legal authority to sell.',
+      '10. Confirm no lien: ask "Is there a loan on this vehicle?" — if yes, the lender\'s name is on the title. The loan must be paid off at or before the sale, or you take on their debt.',
+      '11. Pay safely: cash, cashier\'s check, or Zelle/Venmo. Never personal checks, money orders from strangers, or wire transfers.',
+      '12. Write a bill of sale: VIN, sale price, date, "sold as-is", both printed names and signatures. Two copies.',
+      '13. Get insurance on the car BEFORE you drive it away — the moment you take possession, you\'re liable.',
+      '14. Complete the title transfer at the DMV within your state\'s deadline (usually 10–30 days).',
+    ],
+  },
+  {
+    title: 'Title Types & What They Mean',
+    icon: 'document-text-outline',
+    color: '#a855f7',
+    items: [
+      '✅ CLEAN TITLE — No major incidents on record. Standard ownership. What you want. Still run a history report; "clean" just means no insurance event, not no accidents.',
+      '⚠️ SALVAGE TITLE — Insurer declared the car a total loss (damage ≥ 70–80% of value, or theft recovery). Cannot be legally driven until repaired and re-inspected. Major value hit. Avoid unless you know exactly what you\'re doing.',
+      '🔧 REBUILT / RECONSTRUCTED TITLE — Previously salvage, then repaired and passed a state safety inspection. Legal to drive and insure, but worth 20–40% less than a comparable clean-title car. Always get an independent pre-purchase inspection.',
+      '🍋 LEMON LAW BUYBACK — Manufacturer was required by law to repurchase the vehicle after repeated unfixable defects. The underlying issue that triggered the buyback may still exist. Must be disclosed by law in most states.',
+      '🌊 FLOOD / WATER DAMAGE TITLE — Some states brand titles after significant water exposure. Electrical gremlins, mold, and corrosion often surface months after purchase. Walk away unless the price is rock-bottom and you accept the risk.',
+      '🗑️ JUNK / DISMANTLED TITLE — State has deemed the vehicle unfit for road use. Cannot be registered. Parts-only car. If someone is trying to sell you a road-ready car with this title, that\'s fraud.',
+      '🔒 BONDED TITLE — Owner lost or couldn\'t produce the original title and obtained a surety bond as a workaround. Legal but carries extra risk; the previous owner could contest ownership within the bond period.',
+      '💀 CERTIFICATE OF DESTRUCTION — Issued when a vehicle is so severely damaged it can NEVER be titled for road use again. No exceptions. Useful only as a parts donor.',
+      'BILL OF SALE ONLY — Seller can\'t produce a title at all. This is a major red flag in most states; without a title you may be unable to register the vehicle. Do not buy without a plan to obtain a replacement title.',
+    ],
+  },
+  {
+    title: 'DMV Title Transfer — Step by Step',
+    icon: 'business-outline',
+    color: '#22c55e',
+    items: [
+      'BEFORE you leave the seller: Seller signs the back of the title in the "seller\'s signature" field. Do NOT let them sign in advance of a sale — a pre-signed title is a red flag.',
+      'Odometer disclosure: Federal law requires written odometer disclosure for vehicles under 10 years old. Most titles have a built-in section; fill it in with both signatures.',
+      'Bill of sale: Bring it even if your DMV doesn\'t require one — it\'s your proof of purchase price for sales tax calculation and protects you in disputes.',
+      'What to bring to the DMV: signed title, bill of sale, your driver\'s license, proof of insurance, and payment for fees and taxes.',
+      'Sales tax: Most states charge sales tax on the purchase price. Private-party rates are sometimes lower than dealership rates — check your state\'s DMV site.',
+      'Smog / emissions: Some states (CA, TX, NY, etc.) require a passing smog certificate before you can transfer registration. Confirm with your state DMV before the sale.',
+      'Temporary operating permit: If your tags are expired and you need to drive to the DMV, many states issue a TRP — ask your DMV if you can get one before the sale date.',
+      'Lien release: If the seller had a car loan, they need a lien release letter from their bank BEFORE they can legally sign over a clean title. Get this in writing before handing over money.',
+      'Deadline: Most states give you 10–30 days to complete the transfer. Missing it can result in fines. Don\'t wait.',
+      'Out-of-state purchase: If buying from another state, you\'ll need to title it in your home state. You may also need a VIN verification and/or passing inspection in your state first.',
+      'After the DMV: Keep the old title, bill of sale, and your new registration together in a safe place. Consider taking a photo of all documents.',
+    ],
+  },
+  {
     title: 'FB Marketplace & Private Seller Red Flags',
     icon: 'warning-outline',
     color: '#ef4444',
@@ -521,17 +858,23 @@ function BuyerTipsTab() {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'checklist', label: 'Inspect'       },
-  { id: 'models',    label: 'Model Issues'  },
-  { id: 'tips',      label: 'Buyer Tips'    },
+  { id: 'scan',      label: 'AI Scan'      },
+  { id: 'checklist', label: 'Checklist'    },
+  { id: 'models',    label: 'Model Issues' },
+  { id: 'tips',      label: 'Buyer Tips'   },
 ];
 
 export default function BuyerCheckScreen() {
-  const [tab, setTab] = useState<Tab>('checklist');
+  const [tab, setTab] = useState<Tab>('scan');
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <View style={styles.tabBar}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabBar}
+        contentContainerStyle={styles.tabBarContent}
+      >
         {TABS.map(({ id, label }) => (
           <TouchableOpacity
             key={id}
@@ -543,8 +886,9 @@ export default function BuyerCheckScreen() {
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
+      </ScrollView>
 
+      {tab === 'scan'      && <ScanTab />}
       {tab === 'checklist' && <ChecklistTab />}
       {tab === 'models'    && <ModelIssuesTab />}
       {tab === 'tips'      && <BuyerTipsTab />}
@@ -560,13 +904,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#0f0f0f',
   },
   tabBar: {
-    flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: '#2a2a2a',
     backgroundColor: '#0f0f0f',
+    flexGrow: 0,
+  },
+  tabBarContent: {
+    flexDirection: 'row',
   },
   tabBtn: {
-    flex: 1,
+    paddingHorizontal: 16,
     paddingVertical: 12,
     alignItems: 'center',
   },
@@ -1007,5 +1354,176 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#bbb',
     lineHeight: 18,
+  },
+  // Scan overlay
+  scanOverlayContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanOverlayFrame: {
+    width: '85%',
+    aspectRatio: 4 / 3,
+    position: 'relative',
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 24,
+    height: 24,
+    borderColor: '#3b82f6',
+    borderWidth: 3,
+  },
+  cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0 },
+  cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0 },
+  cornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0 },
+  cornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0 },
+  // Scan tab
+  scanSummaryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  scanSummaryText: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  scanGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+  },
+  scanPartCard: {
+    width: '48%',
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    gap: 6,
+    alignItems: 'flex-start',
+  },
+  scanPartLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  scanPartHint: {
+    fontSize: 10,
+    color: '#555',
+  },
+  // Scan result card
+  scanResult: {
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    marginBottom: 10,
+    gap: 8,
+  },
+  scanResultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scanResultPart: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  rescanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#0d1f33',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#1a3a5a',
+  },
+  rescanBtnText: {
+    fontSize: 11,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  scanResultSummary: {
+    fontSize: 12,
+    color: '#aaa',
+    lineHeight: 17,
+  },
+  scanNoDamage: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 4,
+  },
+  scanNoDamageText: {
+    fontSize: 12,
+    color: '#4ade80',
+    fontWeight: '600',
+  },
+  scanDamageRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingVertical: 6,
+    borderTopWidth: 1,
+    borderTopColor: '#222',
+  },
+  scanDamageLeft: {
+    flex: 1,
+    gap: 2,
+  },
+  scanDamageType: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#ddd',
+  },
+  scanDamageLoc: {
+    fontSize: 11,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  scanDamageDesc: {
+    fontSize: 11,
+    color: '#999',
+    lineHeight: 15,
+  },
+  scanSeverityPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignSelf: 'flex-start',
+    marginTop: 2,
+  },
+  scanSeverityText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  scanRecs: {
+    gap: 5,
+    backgroundColor: '#141000',
+    borderRadius: 8,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#2a1e00',
+  },
+  scanRecRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  scanRecText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#c4a000',
+    lineHeight: 15,
   },
 });
