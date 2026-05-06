@@ -18,11 +18,36 @@ const VEHICLE_PART_LABELS: Record<VehiclePart, string> = {
   passenger_side: 'passenger side panels and doors',
   roof: 'vehicle roof',
   engine_bay: 'engine bay',
+  brakes: 'brake system (wheel-area brake rotor, caliper, pads, brake hose, and nearby brake line)',
   unknown: 'vehicle',
 };
 
 function buildPrompt(vehiclePart: VehiclePart): string {
   const partLabel = VEHICLE_PART_LABELS[vehiclePart];
+  if (vehiclePart === 'brakes') {
+    return `You are an expert automotive brake inspector. Analyze this image of a ${partLabel} and determine whether the visible brake system appears to be in good or bad condition.
+
+Look specifically for brake pad thickness, rotor scoring/grooves, heavy rotor rust, cracked or heat-checked rotor surfaces, uneven wear, damaged calipers, brake fluid leaks, cracked or swollen rubber brake hoses, corroded metal brake lines, missing hardware, or anything unsafe. If the image is too far away, blocked by the wheel, blurry, or does not clearly show the rotor/caliper/pad area, say that a better photo is needed in the recommendations and use the visible evidence only.
+
+Respond ONLY with a valid JSON object in this exact schema (no markdown, no prose):
+{
+  "overallSeverity": "none" | "minor" | "moderate" | "severe",
+  "summary": "1-2 sentence plain-English brake condition summary. Say whether the visible brake system looks good, needs monitoring, or looks bad/unsafe.",
+  "damages": [
+    {
+      "type": "rust" | "corrosion" | "structural_damage" | "dent" | "scratch" | "crack" | "leak" | "wear" | "other",
+      "location": "specific brake component and side if visible",
+      "severity": "none" | "minor" | "moderate" | "severe",
+      "confidence": 0.0-1.0,
+      "description": "brief description of the brake condition issue"
+    }
+  ],
+  "recommendations": ["action item 1", "action item 2"]
+}
+
+Use overallSeverity "none" when the visible pads/rotor/caliper/hose look normal. Use "moderate" or "severe" for thin pads, deep rotor scoring, leaks, damaged hoses/lines, or anything that could affect braking safety.`;
+  }
+
   return `You are an expert automotive damage assessor. Analyze this image of a ${partLabel} and identify any corrosion, rust, structural damage, dents, cracks, leaks, or wear.
 
 Respond ONLY with a valid JSON object in this exact schema (no markdown, no prose):

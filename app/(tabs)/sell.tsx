@@ -3,6 +3,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -58,13 +59,14 @@ const CONDITION_COLOR: Record<Severity, string> = {
   severe:   '#f87171',
 };
 
-const SCAN_PARTS: { id: VehiclePart; label: string; icon: string; hint: string }[] = [
-  { id: 'underbody',      label: 'Underbody',     icon: 'layers-outline',               hint: 'Frame rails, floor pans, exhaust, brake lines.' },
-  { id: 'front',          label: 'Front',          icon: 'arrow-forward-circle-outline', hint: 'Bumper, hood, headlights, grille.' },
-  { id: 'rear',           label: 'Rear',           icon: 'arrow-back-circle-outline',    hint: 'Rear bumper, trunk lid, taillights.' },
-  { id: 'driver_side',    label: 'Driver Side',    icon: 'car-outline',                  hint: 'Driver-side panels and doors.' },
-  { id: 'passenger_side', label: 'Passenger Side', icon: 'car-outline',                  hint: 'Passenger-side panels and doors.' },
-  { id: 'engine_bay',     label: 'Engine Bay',     icon: 'settings-outline',             hint: 'Engine, fluid lines, hoses, and belts.' },
+const SCAN_PARTS: { id: VehiclePart; label: string; icon: string; hint: string; target: string }[] = [
+  { id: 'underbody',      label: 'Underbody',     icon: 'layers-outline',               hint: 'Frame rails, floor pans, exhaust, brake lines.', target: 'frame rail' },
+  { id: 'front',          label: 'Front',          icon: 'arrow-forward-circle-outline', hint: 'Bumper, hood, headlights, grille.', target: 'front damage area' },
+  { id: 'rear',           label: 'Rear',           icon: 'arrow-back-circle-outline',    hint: 'Rear bumper, trunk lid, taillights.', target: 'rear damage area' },
+  { id: 'driver_side',    label: 'Driver Side',    icon: 'car-outline',                  hint: 'Driver-side panels and doors.', target: 'side panel' },
+  { id: 'passenger_side', label: 'Passenger Side', icon: 'car-outline',                  hint: 'Passenger-side panels and doors.', target: 'side panel' },
+  { id: 'engine_bay',     label: 'Engine Bay',     icon: 'settings-outline',             hint: 'Engine, fluid lines, hoses, and belts.', target: 'engine component' },
+  { id: 'brakes',         label: 'Brake System',   icon: 'disc-outline',                 hint: 'Turn wheel outward; center the brake caliper with rotor and pad edge visible.', target: 'brake caliper' },
 ];
 
 // Derive worst-case severity across all scan results
@@ -92,15 +94,11 @@ function ScanCameraModal({
   const [analyzing, setAnalyzing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
 
-  const handleCapture = async () => {
-    if (!cameraRef.current || analyzing) return;
+  const analyzeImageUri = async (imageUri: string) => {
     setAnalyzing(true);
     try {
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      if (!photo?.uri) throw new Error('Failed to capture photo.');
-
       const resized = await ImageManipulator.manipulateAsync(
-        photo.uri,
+        imageUri,
         [{ resize: { width: 1024 } }],
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
@@ -136,6 +134,36 @@ function ScanCameraModal({
     }
   };
 
+  const handleCapture = async () => {
+    if (!cameraRef.current || analyzing) return;
+    try {
+      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+      if (!photo?.uri) throw new Error('Failed to capture photo.');
+      await analyzeImageUri(photo.uri);
+    } catch (err) {
+      Alert.alert('Capture Failed', err instanceof Error ? err.message : String(err));
+    }
+  };
+
+  const handlePickImage = async () => {
+    if (analyzing) return;
+
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert('Photo Access Needed', 'Allow photo library access to upload an existing vehicle photo.');
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.9,
+      allowsEditing: false,
+    });
+
+    if (pickerResult.canceled || !pickerResult.assets[0]?.uri) return;
+    await analyzeImageUri(pickerResult.assets[0].uri);
+  };
+
   return (
     <View style={styles.cameraModal}>
       {!permission ? (
@@ -160,6 +188,9 @@ function ScanCameraModal({
 
           <View style={styles.cameraOverlay}>
             <View style={styles.cameraFrame}>
+              <View style={styles.targetBadge}>
+                <Text style={styles.targetBadgeText}>Place {part.target} here</Text>
+              </View>
               <View style={[styles.corner, styles.cornerTL]} />
               <View style={[styles.corner, styles.cornerTR]} />
               <View style={[styles.corner, styles.cornerBL]} />
@@ -176,9 +207,13 @@ function ScanCameraModal({
               </View>
             ) : (
               <View style={styles.captureRow}>
+                <TouchableOpacity style={styles.uploadBtn} onPress={handlePickImage}>
+                  <Ionicons name="image-outline" size={22} color="#fff" />
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
                   <View style={styles.captureBtnInner} />
                 </TouchableOpacity>
+                <View style={styles.captureSpacer} />
               </View>
             )}
           </View>
@@ -886,7 +921,28 @@ const styles = StyleSheet.create({
   cameraCloseBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   cameraTitleText: { flex: 1, color: '#fff', fontWeight: '700', fontSize: 16, textAlign: 'center' },
   cameraOverlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  cameraFrame: { width: '85%', aspectRatio: 4 / 3, position: 'relative' },
+  cameraFrame: {
+    width: '85%',
+    aspectRatio: 4 / 3,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetBadge: {
+    maxWidth: '84%',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(245,158,11,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.75)',
+  },
+  targetBadgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
   corner: { position: 'absolute', width: 24, height: 24, borderColor: '#f59e0b', borderWidth: 3 },
   cornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0 },
   cornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0 },
@@ -902,7 +958,24 @@ const styles = StyleSheet.create({
   cameraHint: { color: '#ccc', fontSize: 13, textAlign: 'center', lineHeight: 18 },
   analyzingBox: { alignItems: 'center', height: 80, justifyContent: 'center', gap: 10 },
   analyzingText: { color: '#fff', fontSize: 14, fontWeight: '600' },
-  captureRow: { alignItems: 'center', height: 80, justifyContent: 'center' },
+  captureRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: 24,
+    height: 80,
+    justifyContent: 'center',
+  },
+  uploadBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureSpacer: { width: 48, height: 48 },
   captureBtn: {
     width: 72,
     height: 72,

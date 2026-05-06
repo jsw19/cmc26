@@ -42,6 +42,12 @@
         {
           "cameraPermission": "CheckMyCar uses the camera to photograph your vehicle for damage analysis."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "CheckMyCar accesses your photo library to analyze vehicle images."
+        }
       ]
     ],
     "experiments": {

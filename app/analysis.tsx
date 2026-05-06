@@ -35,6 +35,18 @@ const DAMAGE_ICONS: Record<string, string> = {
   other: 'ellipse-outline',
 };
 
+const PART_LABELS: Record<string, string> = {
+  underbody: 'Underbody',
+  front: 'Front',
+  rear: 'Rear',
+  driver_side: 'Driver Side',
+  passenger_side: 'Passenger Side',
+  roof: 'Roof',
+  engine_bay: 'Engine Bay',
+  brakes: 'Brake System',
+  unknown: 'Vehicle',
+};
+
 function CostEstimateCard({ estimate }: { estimate: CostEstimate }) {
   const { currencySymbol, items, totalMin, totalMax, location, disclaimer } = estimate;
   const fmt = (n: number) => `${currencySymbol}${n.toLocaleString()}`;
@@ -510,7 +522,7 @@ export default function AnalysisScreen() {
           <View style={styles.resultRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.partLabel}>
-                {inspection.vehiclePart.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                {PART_LABELS[inspection.vehiclePart] ?? 'Vehicle'}
               </Text>
               <Text style={styles.dateText}>{date}</Text>
             </View>

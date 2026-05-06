@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import {
@@ -18,30 +19,41 @@ import { analyzeVehicleImage } from '../src/sdk/analyze';
 import { analyzeVehicleImageLocally } from '../src/sdk/analyzeLocal';
 import type { VehiclePart } from '../src/sdk/types';
 
-const PART_GUIDES: Record<string, { title: string; hint: string }> = {
+const PART_GUIDES: Record<string, { title: string; hint: string; target: string }> = {
   underbody: {
     title: 'Underbody Inspection',
     hint: 'Position camera below the vehicle to capture the floor pans, chassis, and exhaust.',
+    target: 'frame rail',
   },
   front: {
     title: 'Front Inspection',
     hint: 'Capture the full front bumper, hood, headlights, and grille.',
+    target: 'front damage area',
   },
   rear: {
     title: 'Rear Inspection',
     hint: 'Capture the rear bumper, trunk lid, and taillights.',
+    target: 'rear damage area',
   },
   driver_side: {
     title: 'Driver Side',
     hint: 'Stand back to capture the full driver side panels and doors.',
+    target: 'side panel',
   },
   passenger_side: {
     title: 'Passenger Side',
     hint: 'Stand back to capture the full passenger side panels and doors.',
+    target: 'side panel',
   },
   engine_bay: {
     title: 'Engine Bay',
     hint: 'Open the hood fully and capture the engine, fluid reservoirs, and hoses.',
+    target: 'engine component',
+  },
+  brakes: {
+    title: 'Brake System Check',
+    hint: 'Turn the wheel outward, get close through the spokes, and center the brake caliper in the frame with the rotor and pad edge visible.',
+    target: 'brake caliper',
   },
 };
 
@@ -59,21 +71,16 @@ export default function CameraScreen() {
   const guide = PART_GUIDES[vehiclePart] ?? {
     title: 'Vehicle Inspection',
     hint: 'Position the camera to capture the area you want to inspect.',
+    target: 'area of interest',
   };
 
-  const handleCapture = async () => {
-    if (!cameraRef.current || analyzing) return;
-
+  const analyzeImageUri = async (imageUri: string) => {
     try {
       setAnalyzing(true);
 
-      // Capture photo
-      const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
-      if (!photo?.uri) throw new Error('Failed to capture photo.');
-
       // Resize to limit API payload
       const resized = await ImageManipulator.manipulateAsync(
-        photo.uri,
+        imageUri,
         [{ resize: { width: MAX_IMAGE_SIZE } }],
         { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
       );
@@ -124,6 +131,36 @@ export default function CameraScreen() {
     }
   };
 
+  const handleCapture = async () => {
+    if (!cameraRef.current || analyzing) return;
+
+    const photo = await cameraRef.current.takePictureAsync({ quality: 0.8 });
+    if (!photo?.uri) {
+      Alert.alert('Capture Failed', 'Failed to capture photo.');
+      return;
+    }
+    await analyzeImageUri(photo.uri);
+  };
+
+  const handlePickImage = async () => {
+    if (analyzing) return;
+
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      Alert.alert('Photo Access Needed', 'Allow photo library access to upload an existing vehicle photo.');
+      return;
+    }
+
+    const pickerResult = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.9,
+      allowsEditing: false,
+    });
+
+    if (pickerResult.canceled || !pickerResult.assets[0]?.uri) return;
+    await analyzeImageUri(pickerResult.assets[0].uri);
+  };
+
   if (!permission) {
     return <View style={styles.container} />;
   }
@@ -161,6 +198,9 @@ export default function CameraScreen() {
         {/* Overlay frame */}
         <View style={styles.overlayContainer}>
           <View style={styles.overlayFrame}>
+            <View style={styles.targetBadge}>
+              <Text style={styles.targetBadgeText}>Place {guide.target} here</Text>
+            </View>
             {/* Corner markers */}
             <View style={[styles.corner, styles.cornerTL]} />
             <View style={[styles.corner, styles.cornerTR]} />
@@ -201,9 +241,15 @@ export default function CameraScreen() {
                 </Text>
               </View>
             ) : (
-              <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
-                <View style={styles.captureBtnInner} />
-              </TouchableOpacity>
+              <View style={styles.captureRow}>
+                <TouchableOpacity style={styles.uploadBtn} onPress={handlePickImage}>
+                  <Ionicons name="image-outline" size={22} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.captureBtn} onPress={handleCapture}>
+                  <View style={styles.captureBtnInner} />
+                </TouchableOpacity>
+                <View style={styles.captureSpacer} />
+              </View>
             )}
           </View>
         </View>
@@ -275,6 +321,23 @@ const styles = StyleSheet.create({
     width: '80%',
     aspectRatio: 4 / 3,
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  targetBadge: {
+    maxWidth: '84%',
+    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(59,130,246,0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(147,197,253,0.75)',
+  },
+  targetBadgeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   corner: {
     position: 'absolute',
@@ -304,6 +367,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 80,
+  },
+  captureRow: {
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+  },
+  uploadBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.24)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureSpacer: {
+    width: 48,
+    height: 48,
   },
   captureBtn: {
     width: 72,

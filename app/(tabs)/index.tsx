@@ -12,6 +12,7 @@ const VEHICLE_PARTS = [
   { id: 'driver_side', label: 'Driver Side', icon: 'car-outline', description: 'Panels and doors' },
   { id: 'passenger_side', label: 'Passenger Side', icon: 'car-outline', description: 'Panels and doors' },
   { id: 'engine_bay', label: 'Engine Bay', icon: 'settings-outline', description: 'Engine, fluid lines' },
+  { id: 'brakes', label: 'Brake System', icon: 'disc-outline', description: 'Pads, rotors, calipers' },
 ] as const;
 
 export default function HomeScreen() {

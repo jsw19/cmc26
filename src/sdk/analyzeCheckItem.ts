@@ -85,6 +85,32 @@ export const PHOTO_HINTS: Record<string, string> = {
   smoke_water:        'Lift the floor mat and photograph the carpet and floor pan beneath it.',
 };
 
+export const PHOTO_TARGETS: Record<string, string> = {
+  oil_leak:           'oil leak area',
+  coolant_water_pump: 'water pump',
+  oil_condition:      'oil sample',
+  belts_hoses:        'belt or hose',
+  battery:            'battery terminal',
+  frame_rust:         'frame rail',
+  exhaust:            'exhaust pipe',
+  cv_suspension:      'CV boot',
+  brake_lines:        'brake line',
+  trans_fluid:        'transmission pan',
+  shift_quality:      'gear shifter',
+  pads_rotors:        'brake caliper',
+  brake_fluid_level:  'brake fluid reservoir',
+  warning_lights:     'warning lights',
+  obd_scan:           'OBD2 port',
+  ecu_software:       'OBD2 device',
+  odometer_fraud:     'odometer',
+  paint_match:        'panel edge',
+  panel_gaps:         'panel gap',
+  hidden_damage:      'hinge bolts',
+  wear_vs_mileage:    'wear area',
+  ac_heat:            'A/C vent',
+  smoke_water:        'carpet area',
+};
+
 export async function analyzeCheckItem(
   base64Image: string,
   savedUri: string,

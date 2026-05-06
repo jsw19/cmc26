@@ -8,6 +8,7 @@ export type VehiclePart =
   | 'passenger_side'
   | 'roof'
   | 'engine_bay'
+  | 'brakes'
   | 'unknown';
 
 export type DamageType =

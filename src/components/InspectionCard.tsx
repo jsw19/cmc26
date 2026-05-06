@@ -12,6 +12,7 @@ const PART_LABELS: Record<string, string> = {
   passenger_side: 'Passenger Side',
   roof: 'Roof',
   engine_bay: 'Engine Bay',
+  brakes: 'Brake System',
   unknown: 'Vehicle',
 };
 
