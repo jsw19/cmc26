@@ -46,6 +46,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="magazine"
+        options={{
+          title: 'Magazine',
+          headerTitle: 'Car Magazine',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="newspaper-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="sell"
         options={{
           title: 'Sell',
