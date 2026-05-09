@@ -4,6 +4,7 @@ export interface CheckItem {
   how: string;
   redFlags: string[];
   tip?: string;
+  maintenanceSuggestions?: string[];
 }
 
 export interface InspectionSystem {
@@ -80,6 +81,42 @@ export const INSPECTION_SYSTEMS: InspectionSystem[] = [
           'Amateur splicing or non-stock wiring near the battery',
         ],
         tip: 'Disconnecting the battery resets the ECU and clears fault codes. Incomplete OBD readiness monitors after a battery change confirm this.',
+      },
+      {
+        id: 'brake_fluid_engine_bay',
+        title: 'Brake Fluid Reservoir',
+        how: 'Find the small translucent reservoir mounted near the firewall on the master cylinder, usually on the driver side. Brake fluid transfers pedal force through hydraulic lines so the calipers can clamp the rotors. Check that the level sits between MIN and MAX and the cap is tight.',
+        redFlags: [
+          'Fluid at or below MIN, especially if brake pads are not visibly worn',
+          'Dark brown or black fluid, which can indicate moisture contamination and reduced boiling point',
+          'Wetness around the master cylinder, reservoir, cap, or nearby brake booster',
+          'Cracked reservoir plastic or a missing/damaged cap',
+          'Soft, sinking, or spongy brake pedal during a test drive',
+        ],
+        tip: 'Do not top up brake fluid casually to hide a low level. Low fluid can mean worn pads or a leak, and brake fluid damages paint.',
+        maintenanceSuggestions: [
+          'If fluid is dark, plan a brake fluid flush using the exact DOT type listed on the cap or owner manual.',
+          'If the level is low or any wetness is visible, have a repair shop inspect the hydraulic system before driving hard.',
+          'If braking feels soft, grinding, or uneven, treat it as safety-critical and get an in-person inspection.',
+        ],
+      },
+      {
+        id: 'power_steering_fluid',
+        title: 'Power Steering Fluid',
+        how: 'Look for a cap labeled Power Steering, Steering Fluid, or an icon of a steering wheel. The fluid helps hydraulic steering assist reduce effort when turning. Some newer cars use electric power steering and may not have a reservoir.',
+        redFlags: [
+          'Fluid below the COLD/HOT or MIN/MAX mark on the dipstick or reservoir',
+          'Foamy, very dark, burnt-smelling, or gritty fluid',
+          'Wetness around the reservoir, pump, pressure hose, return hose, or steering rack lines',
+          'Whining noise when turning the wheel',
+          'Steering feels heavy, jerky, or inconsistent at low speed',
+        ],
+        tip: 'Power steering systems can require different fluids, including ATF on some cars. Use the owner manual or cap label before adding anything.',
+        maintenanceSuggestions: [
+          'If fluid is low, inspect for leaks before topping up; hydraulic steering should not consume fluid.',
+          'If fluid is dark or noisy steering is present, budget for a fluid exchange and hose/pump inspection.',
+          'If steering assist drops out or leaks are active, do not rely on the app result; get a repair shop diagnosis.',
+        ],
       },
     ],
   },

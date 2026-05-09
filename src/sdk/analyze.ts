@@ -24,6 +24,30 @@ const VEHICLE_PART_LABELS: Record<VehiclePart, string> = {
 
 function buildPrompt(vehiclePart: VehiclePart): string {
   const partLabel = VEHICLE_PART_LABELS[vehiclePart];
+  if (vehiclePart === 'engine_bay') {
+    return `You are an expert automotive engine-bay inspector. Analyze this image of an engine bay and identify visible service parts, fluid reservoirs, leaks, wear, corrosion, or maintenance red flags.
+
+Look specifically for engine oil leaks, coolant reservoir and hose condition, brake fluid reservoir near the master cylinder/firewall, power steering fluid reservoir or pump area if the vehicle uses hydraulic steering, belts, hoses, battery terminals, and obvious disconnected or damaged parts. For brake fluid, explain that it transfers pedal force through the hydraulic brake system. For power steering fluid, explain that it helps hydraulic steering assist reduce steering effort. If a vehicle appears to use electric power steering and no power steering reservoir is visible, say that may be normal.
+
+Respond ONLY with a valid JSON object in this exact schema (no markdown, no prose):
+{
+  "overallSeverity": "none" | "minor" | "moderate" | "severe",
+  "summary": "1-2 sentence plain-English engine bay condition summary. Mention key visible fluids or parts inspected.",
+  "damages": [
+    {
+      "type": "rust" | "corrosion" | "structural_damage" | "dent" | "scratch" | "crack" | "leak" | "wear" | "other",
+      "location": "specific component, reservoir, hose, belt, or area",
+      "severity": "none" | "minor" | "moderate" | "severe",
+      "confidence": 0.0-1.0,
+      "description": "brief description of this specific issue"
+    }
+  ],
+  "recommendations": ["detailed maintenance suggestion 1", "detailed maintenance suggestion 2"]
+}
+
+Include practical maintenance suggestions such as checking the correct fluid type, flushing old brake fluid, inspecting leaks before topping up, replacing cracked hoses, or getting belts/battery serviced. If severity is moderate or severe, include a recommendation that this app cannot replace an in-person repair shop inspection. If no damage is found, return overallSeverity "none", empty damages array, and routine maintenance suggestions.`;
+  }
+
   if (vehiclePart === 'brakes') {
     return `You are an expert automotive brake inspector. Analyze this image of a ${partLabel} and determine whether the visible brake system appears to be in good or bad condition.
 
@@ -45,7 +69,7 @@ Respond ONLY with a valid JSON object in this exact schema (no markdown, no pros
   "recommendations": ["action item 1", "action item 2"]
 }
 
-Use overallSeverity "none" when the visible pads/rotor/caliper/hose look normal. Use "moderate" or "severe" for thin pads, deep rotor scoring, leaks, damaged hoses/lines, or anything that could affect braking safety.`;
+Use overallSeverity "none" when the visible pads/rotor/caliper/hose look normal. Use "moderate" or "severe" for thin pads, deep rotor scoring, leaks, damaged hoses/lines, or anything that could affect braking safety. If severity is moderate or severe, include a recommendation that this app cannot replace an in-person repair shop inspection.`;
   }
 
   return `You are an expert automotive damage assessor. Analyze this image of a ${partLabel} and identify any corrosion, rust, structural damage, dents, cracks, leaks, or wear.
@@ -66,7 +90,7 @@ Respond ONLY with a valid JSON object in this exact schema (no markdown, no pros
   "recommendations": ["action item 1", "action item 2"]
 }
 
-If no damage is found, return overallSeverity "none", empty damages array, and an appropriate summary.`;
+If severity is moderate or severe, include a recommendation that this app cannot replace an in-person repair shop inspection. If no damage is found, return overallSeverity "none", empty damages array, and an appropriate summary.`;
 }
 
 function parseSeverity(val: unknown): Severity {
@@ -93,17 +117,27 @@ function parseResponse(
       }))
     : [];
 
+  const recommendations = Array.isArray(parsed.recommendations)
+    ? (parsed.recommendations as unknown[]).map(String)
+    : [];
+  const overallSeverity = parseSeverity(parsed.overallSeverity);
+
+  if (
+    (overallSeverity === 'moderate' || overallSeverity === 'severe') &&
+    !recommendations.some((rec) => rec.toLowerCase().includes('repair shop'))
+  ) {
+    recommendations.push('This app cannot replace an in-person repair shop inspection for moderate or severe findings.');
+  }
+
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: Date.now(),
     vehiclePart,
     imageUri,
     damages,
-    overallSeverity: parseSeverity(parsed.overallSeverity),
+    overallSeverity,
     summary: String(parsed.summary ?? ''),
-    recommendations: Array.isArray(parsed.recommendations)
-      ? (parsed.recommendations as unknown[]).map(String)
-      : [],
+    recommendations,
   };
 }
 

@@ -4,6 +4,7 @@ export interface CheckItemAnalysis {
   verdict: 'ok' | 'concern' | 'problem';
   summary: string;
   details: string[];
+  maintenanceSuggestions: string[];
   imageUri: string;
 }
 
@@ -18,6 +19,10 @@ const CHECK_PROMPTS: Record<string, string> = {
     'Inspect this image of engine belts and hoses. Look for: cracks, fraying, or a shiny glazed surface on the serpentine belt; soft, collapsed, cracked, or brittle coolant hoses; any hose with bulging near clamps. Report exactly what you see.',
   battery:
     'Inspect this battery image. Look for: white or blue-green corrosion powder on either terminal; a swollen or bulging battery casing; any melted or amateur wiring near the terminals. Report exactly what you see.',
+  brake_fluid_engine_bay:
+    'Inspect this engine bay image and identify the brake fluid reservoir if visible. Explain that brake fluid transfers pedal force through hydraulic lines to operate the brakes. Look for: reservoir location near the firewall/master cylinder, fluid level relative to MIN/MAX, fluid color (clear/light yellow=good, dark brown/black=old or moisture-contaminated), cloudy fluid, wetness around the cap/master cylinder, cracked reservoir plastic, or missing/damaged cap. Report exactly what you see and give maintenance suggestions.',
+  power_steering_fluid:
+    'Inspect this engine bay image and identify the power steering fluid reservoir if visible. Explain that power steering fluid helps the steering pump or hydraulic assist reduce steering effort. Look for: reservoir label/cap, level relative to HOT/COLD or MIN/MAX marks, fluid color (red/amber often normal depending on vehicle, dark/burnt/foamy concerning), wetness around the pump, reservoir, hoses, or rack lines, cracked hoses, and belt/pulley issues near the pump if visible. If the vehicle appears to use electric power steering and no reservoir is visible, say that may be normal. Report exactly what you see and give maintenance suggestions.',
   frame_rust:
     'Inspect this underbody image for rust and structural damage. Look for: holes or perforations in the frame rails or floor pans; scale rust (thick flaking layers, not just surface discoloration) on structural members; freshly applied undercoating that may be hiding rust; deformed or crumpled metal. Report exactly what you see.',
   exhaust:
@@ -65,6 +70,10 @@ export const PHOTO_HINTS: Record<string, string> = {
   oil_condition:      'Photograph the dipstick after pulling it, or inside the oil filler cap.',
   belts_hoses:        'Capture the serpentine belt and the large radiator hoses.',
   battery:            'Photograph both battery terminals and the battery casing top.',
+  brake_fluid_engine_bay:
+    'Photograph the small translucent brake fluid reservoir near the driver-side firewall/master cylinder.',
+  power_steering_fluid:
+    'Photograph the power steering reservoir or pump area; include the cap label and fluid level marks if visible.',
   frame_rust:         'Aim camera under the vehicle at the frame rails and floor pans.',
   exhaust:            'Photograph the muffler, tailpipe opening, and visible exhaust pipes.',
   cv_suspension:      'Capture the rubber CV boot at the end of the axle shaft near the wheel hub.',
@@ -91,6 +100,8 @@ export const PHOTO_TARGETS: Record<string, string> = {
   oil_condition:      'oil sample',
   belts_hoses:        'belt or hose',
   battery:            'battery terminal',
+  brake_fluid_engine_bay: 'brake fluid reservoir',
+  power_steering_fluid: 'power steering reservoir',
   frame_rust:         'frame rail',
   exhaust:            'exhaust pipe',
   cv_suspension:      'CV boot',
@@ -149,12 +160,14 @@ Respond with valid JSON only — no markdown fences, no extra text:
 {
   "verdict": "ok" | "concern" | "problem",
   "summary": "One concise sentence describing the overall finding.",
-  "details": ["specific observation 1", "specific observation 2"]
+  "details": ["specific observation 1", "specific observation 2"],
+  "maintenanceSuggestions": ["specific maintenance or next-step suggestion 1", "specific maintenance or next-step suggestion 2"]
 }
 
 Use "ok" if everything looks normal and acceptable.
 Use "concern" if there are minor issues worth noting or monitoring.
-Use "problem" if there are clear defects or red flags that need action.`,
+Use "problem" if there are clear defects or red flags that need action.
+If a finding is severe or safety-related, state that this app cannot replace an in-person repair shop inspection.`,
             },
           ],
         },
@@ -170,7 +183,7 @@ Use "problem" if there are clear defects or red flags that need action.`,
   const data = await response.json();
   const raw: string = data.content?.[0]?.text ?? '{}';
 
-  let parsed: { verdict?: string; summary?: string; details?: unknown };
+  let parsed: { verdict?: string; summary?: string; details?: unknown; maintenanceSuggestions?: unknown };
   try {
     const clean = raw.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim();
     parsed = JSON.parse(clean);
@@ -186,6 +199,9 @@ Use "problem" if there are clear defects or red flags that need action.`,
     verdict,
     summary: typeof parsed.summary === 'string' ? parsed.summary : 'Analysis complete.',
     details: Array.isArray(parsed.details) ? (parsed.details as string[]) : [],
+    maintenanceSuggestions: Array.isArray((parsed as { maintenanceSuggestions?: unknown }).maintenanceSuggestions)
+      ? ((parsed as { maintenanceSuggestions: unknown[] }).maintenanceSuggestions).map(String)
+      : [],
     imageUri: savedUri,
   };
 }

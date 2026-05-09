@@ -223,6 +223,20 @@ function PhotoResultCard({ result }: { result: CheckItemAnalysis }) {
           ))}
         </View>
       )}
+      {result.maintenanceSuggestions.length > 0 && (
+        <View style={styles.maintenanceBox}>
+          <View style={styles.maintenanceHeader}>
+            <Ionicons name="construct-outline" size={12} color="#38bdf8" />
+            <Text style={styles.maintenanceTitle}>Maintenance Suggestions</Text>
+          </View>
+          {result.maintenanceSuggestions.map((suggestion, i) => (
+            <View key={i} style={styles.maintenanceRow}>
+              <Ionicons name="chevron-forward" size={11} color="#38bdf8" />
+              <Text style={styles.maintenanceText}>{suggestion}</Text>
+            </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -623,6 +637,21 @@ function ChecklistTab() {
                       <View style={styles.tipBox}>
                         <Ionicons name="bulb-outline" size={12} color="#f59e0b" />
                         <Text style={styles.tipText}>{check.tip}</Text>
+                      </View>
+                    )}
+
+                    {check.maintenanceSuggestions && (
+                      <View style={styles.maintenanceChecklistBox}>
+                        <View style={styles.maintenanceHeader}>
+                          <Ionicons name="construct-outline" size={12} color="#38bdf8" />
+                          <Text style={styles.maintenanceTitle}>Maintenance Suggestions</Text>
+                        </View>
+                        {check.maintenanceSuggestions.map((suggestion, i) => (
+                          <View key={i} style={styles.maintenanceRow}>
+                            <Ionicons name="chevron-forward" size={11} color="#38bdf8" />
+                            <Text style={styles.maintenanceText}>{suggestion}</Text>
+                          </View>
+                        ))}
                       </View>
                     )}
 
@@ -1226,6 +1255,47 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 11,
     color: '#999',
+    lineHeight: 16,
+  },
+  maintenanceBox: {
+    backgroundColor: '#07131f',
+    borderRadius: 8,
+    padding: 9,
+    borderWidth: 1,
+    borderColor: '#12304a',
+    gap: 5,
+    marginTop: 2,
+  },
+  maintenanceChecklistBox: {
+    backgroundColor: '#07131f',
+    borderRadius: 8,
+    padding: 9,
+    borderWidth: 1,
+    borderColor: '#12304a',
+    gap: 5,
+  },
+  maintenanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 2,
+  },
+  maintenanceTitle: {
+    fontSize: 10,
+    color: '#38bdf8',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  maintenanceRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 5,
+  },
+  maintenanceText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#9ac7e8',
     lineHeight: 16,
   },
   // Camera modal
