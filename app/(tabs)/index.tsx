@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import type { Href } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { InspectionCard } from '../../src/components/InspectionCard';
@@ -14,6 +15,8 @@ const VEHICLE_PARTS = [
   { id: 'engine_bay', label: 'Engine Bay', icon: 'settings-outline', description: 'Engine, fluid lines' },
   { id: 'brakes', label: 'Brake System', icon: 'disc-outline', description: 'Pads, rotors, calipers' },
 ] as const;
+
+const FIX_MY_CAR_ROUTE = '/fixmycar' as Href;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -87,6 +90,24 @@ export default function HomeScreen() {
             <Text style={styles.sellCardTitle}>Selling Your Car?</Text>
             <Text style={styles.sellCardDesc}>
               FB Marketplace & Craigslist pricing · Negotiation tips · Region-adjusted value
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#444" />
+        </TouchableOpacity>
+
+        {/* Fix My Car entry */}
+        <TouchableOpacity
+          style={styles.fixCard}
+          activeOpacity={0.8}
+          onPress={() => router.push(FIX_MY_CAR_ROUTE)}
+        >
+          <View style={styles.fixCardIcon}>
+            <Ionicons name="construct-outline" size={22} color="#60a5fa" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.fixCardTitle}>Fix My Car</Text>
+            <Text style={styles.fixCardDesc}>
+              Diagnosis suggestions for clicks, stiff steering, spongy brakes, and DIY fixes
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#444" />
@@ -258,6 +279,36 @@ const styles = StyleSheet.create({
   sellCardDesc: {
     fontSize: 11,
     color: '#f59e0b',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  fixCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#0d1f33',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#1a3a5a',
+  },
+  fixCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#1e3a5f',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fixCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  fixCardDesc: {
+    fontSize: 11,
+    color: '#93c5fd',
     marginTop: 2,
     lineHeight: 15,
   },

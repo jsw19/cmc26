@@ -46,6 +46,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="fixmycar"
+        options={{
+          title: 'Fix',
+          headerTitle: 'Fix My Car',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="construct-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="magazine"
         options={{
           title: 'Magazine',
