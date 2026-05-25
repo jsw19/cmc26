@@ -18,6 +18,8 @@ export interface DiagnosisSuggestion {
   quickChecks: string[];
   tempFixes: string[];
   diyFixes: string[];
+  buyingChecks?: string[];
+  repairSteps?: string[];
   parts: string[];
   tools: string[];
   safetyNote: string;
@@ -72,6 +74,22 @@ export const DIAGNOSIS_SUGGESTIONS: DiagnosisSuggestion[] = [
       'Replace the lower control arm if the bushing is torn or the ball joint is integrated.',
       'Replace the ball joint if it is serviceable separately and alignment afterward is possible.',
     ],
+    buyingChecks: [
+      'Buy left and right sway bar end links if the click is light and the links move by hand.',
+      'Buy sway bar frame bushings if the bar shifts side-to-side or the rubber is split.',
+      'Buy a lower control arm assembly when the rear/front bushing is cracked, separated, or oil-soaked.',
+      'Buy a serviceable ball joint only if your vehicle allows it separately; many cars need the full control arm.',
+      'Match parts by year, make, model, trim, engine, and whether the car uses sport or standard suspension.',
+    ],
+    repairSteps: [
+      'Park on level ground, loosen lug nuts slightly, lift the car, and support it with jack stands.',
+      'Remove the wheel and compare both sides before taking anything apart.',
+      'For sway bar links, remove the top and bottom link nuts, hold the stud with an Allen key if it spins, install the new link, and torque both nuts to spec.',
+      'For sway bar bushings, unbolt the bushing brackets, clean the bar contact area, install the new split bushings in the same position, and tighten brackets evenly.',
+      'For a control arm, support the knuckle, remove the ball joint nut/pinch bolt and arm bolts, transfer any brackets, install the new arm loosely, then final-torque the arm bolts at ride height.',
+      'For a separate ball joint, press or bolt it in using the correct adapter, install a new cotter pin if used, then torque all hardware to spec.',
+      'Reinstall the wheel, torque lug nuts, road-test slowly, then schedule an alignment after control arm or ball joint work.',
+    ],
     parts: ['Sway bar end links', 'Sway bar bushings', 'Ball joint', 'Control arm assembly'],
     tools: ['Jack stands', 'Torque wrench', 'Breaker bar', 'Ball joint separator', 'Penetrating oil'],
     safetyNote: 'Do not keep driving if the wheel has visible play, the car wanders, or the clunk gets louder quickly.',
@@ -103,6 +121,23 @@ export const DIAGNOSIS_SUGGESTIONS: DiagnosisSuggestion[] = [
       'Replace the complete CV axle when clicking is already present.',
       'Replace only the boot if the joint is quiet and grease loss is fresh.',
       'Torque the axle nut exactly to spec and replace any one-time-use nut.',
+    ],
+    buyingChecks: [
+      'Buy the complete CV axle for the clicking side when the outer joint clicks on turns.',
+      'Buy a CV boot kit only if the boot recently tore and the joint is still quiet.',
+      'Buy a new axle nut if the service manual marks it as one-time-use.',
+      'Check whether your car uses ABS tone rings, different left/right axle lengths, or automatic/manual transmission-specific axles.',
+      'Inspect the transmission or differential seal and buy a replacement if it is wet or damaged.',
+    ],
+    repairSteps: [
+      'Loosen the axle nut with the wheel on the ground, then lift and support the vehicle safely.',
+      'Remove the wheel, brake caliper bracket if needed for access, and axle nut.',
+      'Disconnect the lower ball joint or outer tie rod as needed so the knuckle can swing outward.',
+      'Push the axle splines out of the hub; use a puller if the splines are stuck.',
+      'Pry the inner CV joint from the transmission or intermediate shaft, keeping a drain pan ready for fluid.',
+      'Compare the old and new axle length, spline count, ABS ring, and seal surface before installation.',
+      'Seat the new axle fully until the retaining clip locks, slide the outer splines into the hub, reassemble suspension hardware, and torque everything to spec.',
+      'Top off any lost fluid, torque the axle nut with the vehicle loaded as specified, then test-drive slowly and check for leaks.',
     ],
     parts: ['CV axle assembly', 'CV boot kit', 'Axle nut', 'Transmission seal if leaking'],
     tools: ['Axle socket', 'Breaker bar', 'Pry bar', 'Torque wrench', 'Drain pan'],

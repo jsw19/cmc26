@@ -93,6 +93,12 @@ function DiagnosisCard({ suggestion }: { suggestion: DiagnosisSuggestion }) {
           <InfoList title="Quick Checks" icon="checkbox-outline" items={suggestion.quickChecks} />
           <InfoList title="Temporary Help" icon="flash-outline" items={suggestion.tempFixes} />
           <InfoList title="DIY Garage Fix" icon="hammer-outline" items={suggestion.diyFixes} />
+          {suggestion.buyingChecks && (
+            <InfoList title="Buy / Check These Parts" icon="cart-outline" items={suggestion.buyingChecks} />
+          )}
+          {suggestion.repairSteps && (
+            <InfoList title="Repair Steps" icon="list-outline" items={suggestion.repairSteps} />
+          )}
 
           <View style={styles.partsToolsRow}>
             <View style={styles.partsToolsBox}>
