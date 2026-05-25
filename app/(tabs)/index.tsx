@@ -106,9 +106,9 @@ export default function HomeScreen() {
             <Ionicons name="construct-outline" size={22} color="#60a5fa" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.fixCardTitle}>Fix My Car</Text>
+            <Text style={styles.fixCardTitle}>Smart Diagnosis</Text>
             <Text style={styles.fixCardDesc}>
-              Diagnosis suggestions for clicks, stiff steering, spongy brakes, and DIY fixes
+              Guided symptom flow with safety, parts, DIY steps, and mechanic-ready notes
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#444" />

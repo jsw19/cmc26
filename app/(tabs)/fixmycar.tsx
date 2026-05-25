@@ -23,19 +23,79 @@ import {
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 type CategoryFilter = FixCategory | 'all';
 
+interface ProblemStarter {
+  id: string;
+  label: string;
+  detail: string;
+  icon: IoniconName;
+  category: CategoryFilter;
+  query: string;
+}
+
 const CATEGORY_FILTERS: CategoryFilter[] = ['all', 'suspension', 'steering', 'brakes', 'drivetrain', 'engine'];
 
-const URGENCY_META: Record<FixUrgency, { label: string; color: string; background: string }> = {
-  monitor: { label: 'Monitor', color: '#38bdf8', background: '#082f49' },
-  soon: { label: 'Fix Soon', color: '#facc15', background: '#3a2f05' },
-  urgent: { label: 'Urgent', color: '#fb923c', background: '#3b1d05' },
-  do_not_drive: { label: 'Do Not Drive', color: '#f87171', background: '#3b0a0a' },
+const PROBLEM_STARTERS: ProblemStarter[] = [
+  {
+    id: 'noise',
+    label: 'I Hear a Noise',
+    detail: 'Clicking, clunking, squealing',
+    icon: 'volume-high-outline',
+    category: 'all',
+    query: 'click',
+  },
+  {
+    id: 'brakes',
+    label: 'Brakes Feel Weird',
+    detail: 'Spongy, grinding, scraping',
+    icon: 'disc-outline',
+    category: 'brakes',
+    query: '',
+  },
+  {
+    id: 'steering',
+    label: 'Steering Feels Off',
+    detail: 'Stiff, heavy, binding',
+    icon: 'radio-button-on-outline',
+    category: 'steering',
+    query: '',
+  },
+  {
+    id: 'turning',
+    label: 'Clicks While Turning',
+    detail: 'Parking-lot turns, CV axle signs',
+    icon: 'return-up-forward-outline',
+    category: 'drivetrain',
+    query: 'turning click',
+  },
+  {
+    id: 'wont-start',
+    label: "Won't Start",
+    detail: 'Cranks but does not catch',
+    icon: 'flash-outline',
+    category: 'engine',
+    query: '',
+  },
+  {
+    id: 'suspension',
+    label: 'Over Bumps',
+    detail: 'Knock over potholes or driveway lips',
+    icon: 'git-branch-outline',
+    category: 'suspension',
+    query: 'bump',
+  },
+];
+
+const URGENCY_META: Record<FixUrgency, { label: string; color: string; background: string; drive: string }> = {
+  monitor: { label: 'Monitor', color: '#38bdf8', background: '#082f49', drive: 'Usually OK' },
+  soon: { label: 'Fix Soon', color: '#facc15', background: '#3a2f05', drive: 'Short trips' },
+  urgent: { label: 'Urgent', color: '#fb923c', background: '#3b1d05', drive: 'Limit driving' },
+  do_not_drive: { label: 'Do Not Drive', color: '#f87171', background: '#3b0a0a', drive: 'Tow it' },
 };
 
-const DIFFICULTY_META: Record<FixDifficulty, { label: string; icon: IoniconName }> = {
-  easy: { label: 'Home garage', icon: 'home-outline' },
-  moderate: { label: 'DIY+', icon: 'construct-outline' },
-  advanced: { label: 'Advanced', icon: 'warning-outline' },
+const DIFFICULTY_META: Record<FixDifficulty, { label: string; icon: IoniconName; time: string; cost: string }> = {
+  easy: { label: 'Home garage', icon: 'home-outline', time: '1-2 hr', cost: '$-$$' },
+  moderate: { label: 'DIY+', icon: 'construct-outline', time: '2-5 hr', cost: '$$' },
+  advanced: { label: 'Advanced', icon: 'warning-outline', time: 'Shop likely', cost: '$$$' },
 };
 
 function InfoList({ title, icon, items }: { title: string; icon: IoniconName; items: string[] }) {
@@ -55,13 +115,32 @@ function InfoList({ title, icon, items }: { title: string; icon: IoniconName; it
   );
 }
 
-function DiagnosisCard({ suggestion }: { suggestion: DiagnosisSuggestion }) {
-  const [expanded, setExpanded] = useState(false);
+function StatChip({ icon, label, value }: { icon: IoniconName; label: string; value: string }) {
+  return (
+    <View style={styles.statChip}>
+      <Ionicons name={icon} size={14} color="#93c5fd" />
+      <View style={styles.statTextCol}>
+        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.statValue}>{value}</Text>
+      </View>
+    </View>
+  );
+}
+
+function DiagnosisCard({ suggestion, featured = false }: { suggestion: DiagnosisSuggestion; featured?: boolean }) {
+  const [expanded, setExpanded] = useState(featured);
   const urgency = URGENCY_META[suggestion.urgency];
   const difficulty = DIFFICULTY_META[suggestion.difficulty];
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, featured && styles.featuredCard]}>
+      {featured && (
+        <View style={styles.featuredHeader}>
+          <Ionicons name="sparkles-outline" size={14} color="#60a5fa" />
+          <Text style={styles.featuredLabel}>Best Match From Your Symptoms</Text>
+        </View>
+      )}
+
       <TouchableOpacity
         activeOpacity={0.8}
         onPress={() => setExpanded((value) => !value)}
@@ -85,6 +164,12 @@ function DiagnosisCard({ suggestion }: { suggestion: DiagnosisSuggestion }) {
           <Ionicons name={difficulty.icon} size={12} color="#94a3b8" />
           <Text style={styles.difficultyText}>{difficulty.label}</Text>
         </View>
+      </View>
+
+      <View style={styles.statGrid}>
+        <StatChip icon="car-outline" label="Drive?" value={urgency.drive} />
+        <StatChip icon="time-outline" label="DIY Time" value={difficulty.time} />
+        <StatChip icon="cash-outline" label="Cost" value={difficulty.cost} />
       </View>
 
       {expanded && (
@@ -124,6 +209,7 @@ function DiagnosisCard({ suggestion }: { suggestion: DiagnosisSuggestion }) {
 export default function FixMyCarScreen() {
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [query, setQuery] = useState('');
+  const [activeStarter, setActiveStarter] = useState<string>('noise');
 
   const filteredSuggestions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -145,12 +231,30 @@ export default function FixMyCarScreen() {
         ...suggestion.quickChecks,
         ...suggestion.tempFixes,
         ...suggestion.diyFixes,
+        ...(suggestion.buyingChecks ?? []),
+        ...(suggestion.repairSteps ?? []),
         ...suggestion.parts,
+        ...suggestion.tools,
       ].join(' ').toLowerCase();
 
-      return searchable.includes(normalizedQuery);
+      return normalizedQuery.split(/\s+/).every((word) => searchable.includes(word));
     });
   }, [category, query]);
+
+  const featuredSuggestion = filteredSuggestions[0] ?? DIAGNOSIS_SUGGESTIONS[0];
+  const remainingSuggestions = filteredSuggestions.filter((suggestion) => suggestion.id !== featuredSuggestion.id);
+
+  const handleStarterPress = (starter: ProblemStarter) => {
+    setActiveStarter(starter.id);
+    setCategory(starter.category);
+    setQuery(starter.query);
+  };
+
+  const clearGuidedSearch = () => {
+    setActiveStarter('');
+    setCategory('all');
+    setQuery('');
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -159,11 +263,49 @@ export default function FixMyCarScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.header}>
-          <Text style={styles.title}>Fix My Car</Text>
+        <View style={styles.hero}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.heroIcon}>
+              <Ionicons name="sparkles-outline" size={24} color="#60a5fa" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.eyebrow}>Smart Diagnosis</Text>
+              <Text style={styles.title}>What feels wrong?</Text>
+            </View>
+          </View>
           <Text style={styles.subtitle}>
-            Match common symptoms to likely causes, quick checks, temporary actions, and DIY repairs.
+            Tap a symptom, then get likely causes, safety guidance, parts to check, and DIY repair steps.
           </Text>
+          <View style={styles.heroActions}>
+            <View style={styles.heroActionChip}>
+              <Ionicons name="camera-outline" size={14} color="#93c5fd" />
+              <Text style={styles.heroActionText}>Add photos during inspection</Text>
+            </View>
+            <View style={styles.heroActionChip}>
+              <Ionicons name="receipt-outline" size={14} color="#93c5fd" />
+              <Text style={styles.heroActionText}>Use notes for mechanic quotes</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.starterGrid}>
+          {PROBLEM_STARTERS.map((starter) => {
+            const active = activeStarter === starter.id;
+            return (
+              <TouchableOpacity
+                key={starter.id}
+                activeOpacity={0.78}
+                style={[styles.starterCard, active && styles.starterCardActive]}
+                onPress={() => handleStarterPress(starter)}
+              >
+                <View style={[styles.starterIcon, active && styles.starterIconActive]}>
+                  <Ionicons name={starter.icon} size={20} color={active ? '#fff' : '#60a5fa'} />
+                </View>
+                <Text style={styles.starterLabel}>{starter.label}</Text>
+                <Text style={styles.starterDetail}>{starter.detail}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         <View style={styles.searchBox}>
@@ -171,13 +313,16 @@ export default function FixMyCarScreen() {
           <TextInput
             style={styles.searchInput}
             value={query}
-            onChangeText={setQuery}
+            onChangeText={(value) => {
+              setQuery(value);
+              setActiveStarter('');
+            }}
             placeholder="Search clicking, stiff steering, spongy brakes..."
             placeholderTextColor="#475569"
             returnKeyType="search"
           />
-          {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={10}>
+          {(query.length > 0 || category !== 'all') && (
+            <TouchableOpacity onPress={clearGuidedSearch} hitSlop={10}>
               <Ionicons name="close-circle" size={18} color="#64748b" />
             </TouchableOpacity>
           )}
@@ -196,7 +341,10 @@ export default function FixMyCarScreen() {
                 key={filter}
                 activeOpacity={0.75}
                 style={[styles.filterPill, active && styles.filterPillActive]}
-                onPress={() => setCategory(filter)}
+                onPress={() => {
+                  setCategory(filter);
+                  setActiveStarter('');
+                }}
               >
                 <Ionicons
                   name={CATEGORY_ICONS[filter]}
@@ -211,29 +359,32 @@ export default function FixMyCarScreen() {
           })}
         </ScrollView>
 
-        <View style={styles.summaryStrip}>
-          <Ionicons name="shield-checkmark-outline" size={16} color="#22c55e" />
-          <Text style={styles.summaryText}>
-            Start with checks before buying parts. When brakes, steering, or wheel play feel unsafe, tow it.
-          </Text>
-        </View>
+        {filteredSuggestions.length > 0 ? (
+          <>
+            <DiagnosisCard suggestion={featuredSuggestion} featured />
 
-        <View style={styles.resultsHeader}>
-          <Text style={styles.resultsTitle}>
-            {filteredSuggestions.length} diagnosis suggestion{filteredSuggestions.length === 1 ? '' : 's'}
-          </Text>
-        </View>
+            <View style={styles.resultsHeader}>
+              <Text style={styles.resultsTitle}>
+                More possible matches ({remainingSuggestions.length})
+              </Text>
+            </View>
 
-        {filteredSuggestions.length === 0 ? (
+            {remainingSuggestions.length === 0 ? (
+              <View style={styles.emptyStateSmall}>
+                <Text style={styles.emptyBody}>Change the symptom or category to compare other possibilities.</Text>
+              </View>
+            ) : (
+              remainingSuggestions.map((suggestion) => (
+                <DiagnosisCard key={suggestion.id} suggestion={suggestion} />
+              ))
+            )}
+          </>
+        ) : (
           <View style={styles.emptyState}>
             <Ionicons name="construct-outline" size={42} color="#334155" />
             <Text style={styles.emptyTitle}>No matching symptom yet</Text>
             <Text style={styles.emptyBody}>Try a broader search like brake, steering, click, or suspension.</Text>
           </View>
-        ) : (
-          filteredSuggestions.map((suggestion) => (
-            <DiagnosisCard key={suggestion.id} suggestion={suggestion} />
-          ))
         )}
       </ScrollView>
     </SafeAreaView>
@@ -249,8 +400,33 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 48,
   },
-  header: {
-    marginBottom: 18,
+  hero: {
+    backgroundColor: '#111827',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#1f3b5c',
+    padding: 16,
+    marginBottom: 14,
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 10,
+  },
+  heroIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0d1f33',
+  },
+  eyebrow: {
+    color: '#60a5fa',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   title: {
     fontSize: 26,
@@ -259,8 +435,72 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 13,
-    color: '#777',
-    lineHeight: 18,
+    color: '#cbd5e1',
+    lineHeight: 19,
+  },
+  heroActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  heroActionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#0f172a',
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  heroActionText: {
+    color: '#bfdbfe',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  starterGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 14,
+  },
+  starterCard: {
+    width: '48%',
+    minHeight: 118,
+    backgroundColor: '#1a1a1a',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    padding: 12,
+  },
+  starterCardActive: {
+    borderColor: '#3b82f6',
+    backgroundColor: '#0d1f33',
+  },
+  starterIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#0d1f33',
+    marginBottom: 9,
+  },
+  starterIconActive: {
+    backgroundColor: '#1d4ed8',
+  },
+  starterLabel: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 17,
+  },
+  starterDetail: {
+    color: '#94a3b8',
+    fontSize: 11,
+    lineHeight: 15,
     marginTop: 4,
   },
   searchBox: {
@@ -311,25 +551,9 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: '#fff',
   },
-  summaryStrip: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 9,
-    backgroundColor: '#08240f',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#14532d',
-    padding: 12,
-    marginBottom: 18,
-  },
-  summaryText: {
-    flex: 1,
-    fontSize: 12,
-    color: '#86efac',
-    lineHeight: 17,
-  },
   resultsHeader: {
     marginBottom: 10,
+    marginTop: 4,
   },
   resultsTitle: {
     color: '#fff',
@@ -343,6 +567,22 @@ const styles = StyleSheet.create({
     borderColor: '#2a2a2a',
     padding: 14,
     marginBottom: 12,
+  },
+  featuredCard: {
+    borderColor: '#1d4ed8',
+    backgroundColor: '#151923',
+  },
+  featuredHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  featuredLabel: {
+    color: '#93c5fd',
+    fontSize: 11,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
   cardTop: {
     flexDirection: 'row',
@@ -367,7 +607,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   cardSignal: {
-    color: '#777',
+    color: '#94a3b8',
     fontSize: 12,
     lineHeight: 17,
     marginTop: 3,
@@ -404,6 +644,40 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 11,
     fontWeight: '700',
+  },
+  statGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  statChip: {
+    flex: 1,
+    minWidth: 92,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#111',
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    paddingHorizontal: 9,
+    paddingVertical: 8,
+  },
+  statTextCol: {
+    flex: 1,
+  },
+  statLabel: {
+    color: '#64748b',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    color: '#e5e7eb',
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 1,
   },
   expanded: {
     borderTopWidth: 1,
@@ -490,16 +764,24 @@ const styles = StyleSheet.create({
     paddingVertical: 52,
     gap: 10,
   },
+  emptyStateSmall: {
+    backgroundColor: '#111',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    padding: 14,
+    marginBottom: 12,
+  },
   emptyTitle: {
     color: '#64748b',
     fontSize: 16,
     fontWeight: '700',
   },
   emptyBody: {
-    color: '#475569',
+    color: '#64748b',
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 18,
-    maxWidth: 260,
+    maxWidth: 280,
   },
 });
