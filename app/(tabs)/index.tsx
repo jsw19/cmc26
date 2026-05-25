@@ -17,6 +17,7 @@ const VEHICLE_PARTS = [
 ] as const;
 
 const FIX_MY_CAR_ROUTE = '/fixmycar' as Href;
+const LICENSE_REVIEW_ROUTE = '/license' as Href;
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -108,6 +109,24 @@ export default function HomeScreen() {
             <Text style={styles.fixCardTitle}>Fix My Car</Text>
             <Text style={styles.fixCardDesc}>
               Diagnosis suggestions for clicks, stiff steering, spongy brakes, and DIY fixes
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#444" />
+        </TouchableOpacity>
+
+        {/* License Test Review entry */}
+        <TouchableOpacity
+          style={styles.licenseCard}
+          activeOpacity={0.8}
+          onPress={() => router.push(LICENSE_REVIEW_ROUTE)}
+        >
+          <View style={styles.licenseCardIcon}>
+            <Ionicons name="school-outline" size={22} color="#38bdf8" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.licenseCardTitle}>License Test Review</Text>
+            <Text style={styles.licenseCardDesc}>
+              Practice signs, right of way, parking, safe driving, and emergency rules
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#444" />
@@ -309,6 +328,36 @@ const styles = StyleSheet.create({
   fixCardDesc: {
     fontSize: 11,
     color: '#93c5fd',
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  licenseCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#082f49',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#0c4a6e',
+  },
+  licenseCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#0e4564',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  licenseCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  licenseCardDesc: {
+    fontSize: 11,
+    color: '#bae6fd',
     marginTop: 2,
     lineHeight: 15,
   },

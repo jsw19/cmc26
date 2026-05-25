@@ -56,6 +56,16 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="license"
+        options={{
+          title: 'Test',
+          headerTitle: 'License Test Review',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="school-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="magazine"
         options={{
           title: 'Magazine',
