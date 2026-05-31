@@ -48,6 +48,38 @@ Respond ONLY with a valid JSON object in this exact schema (no markdown, no pros
 Include practical maintenance suggestions such as checking the correct fluid type, flushing old brake fluid, inspecting leaks before topping up, replacing cracked hoses, or getting belts/battery serviced. If severity is moderate or severe, include a recommendation that this app cannot replace an in-person repair shop inspection. If no damage is found, return overallSeverity "none", empty damages array, and routine maintenance suggestions.`;
   }
 
+  if (vehiclePart === 'underbody') {
+    return `You are an expert automotive underbody inspector. Analyze this image of the underbody (frame rails, subframe, floor pans, exhaust, suspension arms, brake and fuel lines, differential, oil pan) and identify rust, perforation, fluid leaks, structural damage, or worn components.
+
+Pay particular attention to:
+- Frame rails and subframe — flaking or scaling rust vs. light surface oxidation
+- Floor pans — pinholes, perforation, or visible patches
+- Exhaust pipes, muffler, heat shields — heavy rust, holes, or missing hardware
+- Suspension arms, control arms, sway bar links — corrosion at pivot points or torn bushings
+- Brake and fuel lines — corrosion, crimping, or wet spots
+- Differential, transmission case, oil pan — wet film indicating seepage
+
+When reporting damages, locate each finding using a zone label ("upper-left", "center", "lower-right", etc.) or the named component if clearly identifiable.
+
+Respond ONLY with a valid JSON object in this exact schema (no markdown, no prose):
+{
+  "overallSeverity": "none" | "minor" | "moderate" | "severe",
+  "summary": "1-2 sentence plain-English underbody condition summary",
+  "damages": [
+    {
+      "type": "rust" | "corrosion" | "structural_damage" | "dent" | "scratch" | "crack" | "leak" | "wear" | "other",
+      "location": "zone or named component (e.g. 'lower-left frame rail', 'center exhaust pipe')",
+      "severity": "none" | "minor" | "moderate" | "severe",
+      "confidence": 0.0-1.0,
+      "description": "brief description of this specific issue"
+    }
+  ],
+  "recommendations": ["action item 1", "action item 2"]
+}
+
+Distinguish light surface rust (cosmetic, common on older vehicles) from structural rust (perforation, heavy flaking, compromised load-bearing metal) — only the latter warrants "severe". If severity is moderate or severe, include a recommendation that this app cannot replace an in-person repair shop inspection. If no damage is found, return overallSeverity "none", empty damages array, and an appropriate summary.`;
+  }
+
   if (vehiclePart === 'brakes') {
     return `You are an expert automotive brake inspector. Analyze this image of a ${partLabel} and determine whether the visible brake system appears to be in good or bad condition.
 

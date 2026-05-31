@@ -48,7 +48,8 @@
         {
           "photosPermission": "CheckMyCar accesses your photo library to analyze vehicle images."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
