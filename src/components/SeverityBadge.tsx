@@ -9,6 +9,18 @@ const COLORS: Record<Severity, { bg: string; text: string; label: string }> = {
   severe: { bg: '#3a0000', text: '#f44336', label: 'Severe' },
 };
 
+/**
+ * Subtle background + border tints for cards keyed by severity. The accent
+ * field is the brighter foreground colour (icons, ratings, highlights).
+ * Designed to read at a glance against the app's #0f0f0f canvas.
+ */
+export const SEVERITY_TINTS: Record<Severity, { bg: string; border: string; accent: string }> = {
+  none:     { bg: '#11221a', border: '#1f3a2c', accent: '#4ade80' },
+  minor:    { bg: '#221d0a', border: '#3a3318', accent: '#facc15' },
+  moderate: { bg: '#221608', border: '#3a2614', accent: '#fb923c' },
+  severe:   { bg: '#220e0e', border: '#3a1818', accent: '#f87171' },
+};
+
 interface Props {
   severity: Severity;
   size?: 'sm' | 'md' | 'lg';

@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SeverityBadge } from '../src/components/SeverityBadge';
+import { SeverityBadge, SEVERITY_TINTS } from '../src/components/SeverityBadge';
 import { useInspection } from '../src/context/InspectionContext';
 import { useLocationCostEstimate } from '../src/hooks/useLocationCostEstimate';
 import { useTradeInEstimate } from '../src/hooks/useTradeInEstimate';
@@ -375,10 +375,11 @@ function SellingPriceCard({
 
 function DamageCard({ damage }: { damage: DamageItem }) {
   const icon = DAMAGE_ICONS[damage.type] ?? 'ellipse-outline';
+  const tint = SEVERITY_TINTS[damage.severity];
   return (
-    <View style={styles.damageCard}>
+    <View style={[styles.damageCard, { backgroundColor: tint.bg, borderColor: tint.border }]}>
       <View style={styles.damageHeader}>
-        <Ionicons name={icon as any} size={18} color="#aaa" />
+        <Ionicons name={icon as any} size={18} color={tint.accent} />
         <Text style={styles.damageType}>
           {damage.type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
         </Text>
@@ -518,7 +519,15 @@ export default function AnalysisScreen() {
         <Image source={{ uri: inspection.imageUri }} style={styles.photo} resizeMode="cover" />
 
         {/* Overall result */}
-        <View style={styles.resultCard}>
+        <View
+          style={[
+            styles.resultCard,
+            {
+              backgroundColor: SEVERITY_TINTS[inspection.overallSeverity].bg,
+              borderColor: SEVERITY_TINTS[inspection.overallSeverity].border,
+            },
+          ]}
+        >
           <View style={styles.resultRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.partLabel}>

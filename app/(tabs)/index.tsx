@@ -16,6 +16,21 @@ const VEHICLE_PARTS = [
   { id: 'brakes', label: 'Brake System', icon: 'disc-outline', description: 'Pads, rotors, calipers' },
 ] as const;
 
+type PartId = (typeof VEHICLE_PARTS)[number]['id'];
+
+// Per-part accent palette — each card gets its own tinted background, border,
+// and icon colour so the inspection grid reads as a colourful menu rather than
+// seven identical dark tiles.
+const PART_ACCENTS: Record<PartId, { tint: string; border: string; icon: string }> = {
+  underbody:      { tint: '#15172e', border: '#2a2e5a', icon: '#818cf8' }, // indigo — chassis
+  front:          { tint: '#2a1810', border: '#502a16', icon: '#fb923c' }, // orange — headlights
+  rear:           { tint: '#2a1518', border: '#502228', icon: '#fb7185' }, // rose   — taillights
+  driver_side:    { tint: '#0d2421', border: '#1f4a44', icon: '#5eead4' }, // teal
+  passenger_side: { tint: '#0d2329', border: '#1d4a54', icon: '#67e8f9' }, // cyan
+  engine_bay:     { tint: '#2a1212', border: '#502222', icon: '#f87171' }, // red    — hot engine
+  brakes:         { tint: '#2a1f08', border: '#503818', icon: '#fbbf24' }, // amber  — brake glow
+};
+
 const FIX_MY_CAR_ROUTE = '/fixmycar' as Href;
 const LICENSE_REVIEW_ROUTE = '/license' as Href;
 
@@ -43,20 +58,23 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>New Inspection</Text>
           <Text style={styles.sectionSubtitle}>Select the area you want to inspect</Text>
           <View style={styles.partsGrid}>
-            {VEHICLE_PARTS.map((part) => (
-              <TouchableOpacity
-                key={part.id}
-                style={styles.partCard}
-                activeOpacity={0.7}
-                onPress={() =>
-                  router.push({ pathname: '/camera', params: { vehiclePart: part.id } })
-                }
-              >
-                <Ionicons name={part.icon as any} size={24} color="#3b82f6" />
-                <Text style={styles.partLabel}>{part.label}</Text>
-                <Text style={styles.partDesc}>{part.description}</Text>
-              </TouchableOpacity>
-            ))}
+            {VEHICLE_PARTS.map((part) => {
+              const accent = PART_ACCENTS[part.id];
+              return (
+                <TouchableOpacity
+                  key={part.id}
+                  style={[styles.partCard, { backgroundColor: accent.tint, borderColor: accent.border }]}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    router.push({ pathname: '/camera', params: { vehiclePart: part.id } })
+                  }
+                >
+                  <Ionicons name={part.icon as any} size={24} color={accent.icon} />
+                  <Text style={styles.partLabel}>{part.label}</Text>
+                  <Text style={styles.partDesc}>{part.description}</Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 

@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SeverityBadge } from '../src/components/SeverityBadge';
+import { SeverityBadge, SEVERITY_TINTS } from '../src/components/SeverityBadge';
 import { INSPECTION_SYSTEMS } from '../src/data/inspectionChecklist';
 import { ALL_MAKES, getIssuesForModel, getModelsForMake } from '../src/data/modelIssues';
 import type { IssueSeverity } from '../src/data/modelIssues';
@@ -397,11 +397,12 @@ function InlineScanResult({
   onRescan: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const tint = SEVERITY_TINTS[result.overallSeverity];
 
   return (
-    <View style={styles.scanResult}>
+    <View style={[styles.scanResult, { backgroundColor: tint.bg, borderColor: tint.border }]}>
       <TouchableOpacity style={styles.scanResultHeader} onPress={() => setExpanded((v) => !v)}>
-        <Ionicons name={part.icon as any} size={16} color="#3b82f6" />
+        <Ionicons name={part.icon as any} size={16} color={tint.accent} />
         <Text style={styles.scanResultPart}>{part.label}</Text>
         <SeverityBadge severity={result.overallSeverity} size="sm" />
         <TouchableOpacity onPress={onRescan} style={styles.rescanBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
