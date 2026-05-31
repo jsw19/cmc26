@@ -1,8 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Constants from 'expo-constants';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import {
@@ -24,6 +22,7 @@ import { analyzeVehicleImage } from '../src/sdk/analyze';
 import { analyzeCheckItem, PHOTO_HINTS, PHOTO_TARGETS } from '../src/sdk/analyzeCheckItem';
 import type { CheckItemAnalysis } from '../src/sdk/analyzeCheckItem';
 import type { InspectionResult, VehiclePart } from '../src/sdk/types';
+import { preprocessImage } from '../src/utils/preprocessImage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,23 +75,10 @@ function CameraModal({ checkId, checkTitle, onClose, onResult }: CameraModalProp
   const analyzeImageUri = async (imageUri: string) => {
     setAnalyzing(true);
     try {
-      const resized = await ImageManipulator.manipulateAsync(
+      const { savedUri, base64 } = await preprocessImage(
         imageUri,
-        [{ resize: { width: 1024 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        `check_${checkId}_${Date.now()}.jpg`,
       );
-
-      const filename = `check_${checkId}_${Date.now()}.jpg`;
-      const savedUri = `${FileSystem.documentDirectory}inspections/${filename}`;
-      await FileSystem.makeDirectoryAsync(
-        `${FileSystem.documentDirectory}inspections/`,
-        { intermediates: true }
-      );
-      await FileSystem.moveAsync({ from: resized.uri, to: savedUri });
-
-      const base64 = await FileSystem.readAsStringAsync(savedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
 
       const result = await analyzeCheckItem(base64, savedUri, checkId);
       onResult(result);
@@ -257,23 +243,10 @@ function ScanCameraModal({ part, onClose, onResult }: ScanCameraModalProps) {
   const analyzeImageUri = async (imageUri: string) => {
     setAnalyzing(true);
     try {
-      const resized = await ImageManipulator.manipulateAsync(
+      const { savedUri, base64 } = await preprocessImage(
         imageUri,
-        [{ resize: { width: 1024 } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        `ppi_${part.id}_${Date.now()}.jpg`,
       );
-
-      const filename = `ppi_${part.id}_${Date.now()}.jpg`;
-      const savedUri = `${FileSystem.documentDirectory}inspections/${filename}`;
-      await FileSystem.makeDirectoryAsync(
-        `${FileSystem.documentDirectory}inspections/`,
-        { intermediates: true }
-      );
-      await FileSystem.moveAsync({ from: resized.uri, to: savedUri });
-
-      const base64 = await FileSystem.readAsStringAsync(savedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
 
       const apiKey =
         (Constants.expoConfig?.extra?.anthropicApiKey as string | undefined)

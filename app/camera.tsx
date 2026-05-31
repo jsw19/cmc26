@@ -1,7 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
@@ -18,6 +16,7 @@ import { useInspection } from '../src/context/InspectionContext';
 import { analyzeVehicleImage } from '../src/sdk/analyze';
 import { analyzeVehicleImageLocally } from '../src/sdk/analyzeLocal';
 import type { VehiclePart } from '../src/sdk/types';
+import { preprocessImage } from '../src/utils/preprocessImage';
 
 const PART_GUIDES: Record<string, { title: string; hint: string; target: string }> = {
   underbody: {
@@ -57,7 +56,6 @@ const PART_GUIDES: Record<string, { title: string; hint: string; target: string 
   },
 };
 
-const MAX_IMAGE_SIZE = 1024;
 
 export default function CameraScreen() {
   const router = useRouter();
@@ -78,26 +76,10 @@ export default function CameraScreen() {
     try {
       setAnalyzing(true);
 
-      // Resize to limit API payload
-      const resized = await ImageManipulator.manipulateAsync(
+      const { savedUri, base64 } = await preprocessImage(
         imageUri,
-        [{ resize: { width: MAX_IMAGE_SIZE } }],
-        { compress: 0.8, format: ImageManipulator.SaveFormat.JPEG }
+        `${Date.now()}.jpg`,
       );
-
-      // Save to persistent file system
-      const filename = `${Date.now()}.jpg`;
-      const savedUri = `${FileSystem.documentDirectory}inspections/${filename}`;
-      await FileSystem.makeDirectoryAsync(
-        `${FileSystem.documentDirectory}inspections/`,
-        { intermediates: true }
-      );
-      await FileSystem.moveAsync({ from: resized.uri, to: savedUri });
-
-      // Read as base64 for API
-      const base64 = await FileSystem.readAsStringAsync(savedUri, {
-        encoding: FileSystem.EncodingType.Base64,
-      });
 
       let result;
       if (useLocal) {

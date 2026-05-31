@@ -104,6 +104,41 @@ function detectorsFor(part: VehiclePart): Detectors {
   }
 }
 
+// --- Adaptive luminance normalisation ----------------------------------------
+
+/**
+ * Coarse brightness estimate: samples every 16th pixel, ignores glare.
+ * Returns mean V (0–1). Used to compute a vBoost for dark images.
+ */
+function quickMeanV(
+  data: Uint8Array,
+  width: number,
+  height: number,
+  isGlare: Detectors['isGlare'],
+): number {
+  const stride = 16;
+  let sumV = 0, count = 0;
+  for (let y = 0; y < height; y += stride) {
+    for (let x = 0; x < width; x += stride) {
+      const i = (y * width + x) * 4;
+      const [h, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
+      if (!isGlare(h, s, v)) { sumV += v; count++; }
+    }
+  }
+  return count > 0 ? sumV / count : 0.5;
+}
+
+/**
+ * For a mean V below 0.22 (dark image — typical for underbody shots taken
+ * in low light or from below a vehicle), compute a boost factor that
+ * stretches pixel brightness toward a 0.35 target midpoint.
+ * Capped at 2.5× to avoid over-brightening partially-lit images.
+ */
+function computeVBoost(meanV: number): number {
+  if (meanV >= 0.22) return 1.0;
+  return Math.min(0.35 / Math.max(meanV, 0.09), 2.5);
+}
+
 // --- Spatial grid analysis --------------------------------------------------
 
 const GRID = 6; // 6x6 cells, mapped to 3x3 quadrants for labelling
@@ -132,7 +167,8 @@ function scanImage(
   data: Uint8Array,
   width: number,
   height: number,
-  det: Detectors
+  det: Detectors,
+  vBoost: number,
 ): ScanResult {
   const stride = Math.max(1, Math.round(Math.sqrt((width * height) / MAX_SAMPLES)));
   const cells = emptyCells();
@@ -145,7 +181,13 @@ function scanImage(
       const i = (y * width + x) * 4;
       const [h, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
 
+      // Glare check uses raw V — boost doesn't make blown highlights disappear.
       if (det.isGlare(h, s, v)) continue;
+
+      // Apply luminance boost for classification only. A dark underbody shot
+      // with meanV ~0.12 would have most rust pixels fall below the V floor
+      // and go undetected without this adjustment.
+      const vAdj = Math.min(v * vBoost, 1.0);
 
       const cellCol = Math.min(GRID - 1, Math.floor((x / width) * GRID));
       const cell = cells[rowBase + cellCol];
@@ -153,9 +195,9 @@ function scanImage(
       cell.analysable++;
       totalAnalysable++;
 
-      if (det.isRust(h, s, v)) cell.rust++;
-      if (det.isDark(h, s, v)) cell.dark++;
-      if (det.isCoolant && det.isCoolant(h, s, v)) cell.coolant++;
+      if (det.isRust(h, s, vAdj)) cell.rust++;
+      if (det.isDark(h, s, vAdj)) cell.dark++;
+      if (det.isCoolant && det.isCoolant(h, s, vAdj)) cell.coolant++;
     }
   }
 
@@ -327,7 +369,12 @@ export async function analyzeVehicleImageLocally(
   const jpegData = jpeg.decode(base64ToUint8Array(base64Image), { formatAsRGBA: true });
   const { data, width, height } = jpegData;
 
-  const { cells, totalAnalysable } = scanImage(data as Uint8Array, width, height, det);
+  // Coarse luminance check — if the image is dark (e.g. underbody shot taken
+  // under a vehicle), boost V so rust pixels don't fall below the classifier floor.
+  const meanV = quickMeanV(data as Uint8Array, width, height, det.isGlare);
+  const vBoost = computeVBoost(meanV);
+
+  const { cells, totalAnalysable } = scanImage(data as Uint8Array, width, height, det, vBoost);
 
   const damages: DamageItem[] = [];
 
