@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import type { ComponentProps } from 'react';
 import {
+  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +20,7 @@ import {
   type FixDifficulty,
   type FixUrgency,
 } from '../../src/data/diagnosisSuggestions';
+import { diagnoseProblem, type AIDiagnosis, type DiagnoseResult } from '../../src/sdk';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 type CategoryFilter = FixCategory | 'all';
@@ -98,6 +100,50 @@ const DIFFICULTY_META: Record<FixDifficulty, { label: string; icon: IoniconName;
   advanced: { label: 'Advanced', icon: 'warning-outline', time: 'Shop likely', cost: '$$$' },
 };
 
+const AI_CATEGORY_ICONS: Record<AIDiagnosis['category'], IoniconName> = {
+  suspension: 'git-branch-outline',
+  steering: 'radio-button-on-outline',
+  brakes: 'disc-outline',
+  drivetrain: 'swap-horizontal-outline',
+  engine: 'settings-outline',
+  electrical: 'flash-outline',
+  other: 'construct-outline',
+};
+
+// DiagnosisCard renders by FixCategory; electrical/other have no card category,
+// so fold them into the closest existing filter (display-only — not used for matching).
+const AI_CATEGORY_TO_FILTER: Record<AIDiagnosis['category'], FixCategory> = {
+  suspension: 'suspension',
+  steering: 'steering',
+  brakes: 'brakes',
+  drivetrain: 'drivetrain',
+  engine: 'engine',
+  electrical: 'engine',
+  other: 'engine',
+};
+
+/** Adapt an LLM diagnosis to the DiagnosisSuggestion shape DiagnosisCard renders. */
+function aiToSuggestion(d: AIDiagnosis, index: number): DiagnosisSuggestion {
+  return {
+    id: `ai-${index}`,
+    category: AI_CATEGORY_TO_FILTER[d.category],
+    symptom: d.symptom,
+    shortSignal: d.shortSignal,
+    icon: AI_CATEGORY_ICONS[d.category],
+    urgency: d.urgency,
+    difficulty: d.difficulty,
+    likelyCauses: d.likelyCauses,
+    quickChecks: d.quickChecks,
+    tempFixes: d.tempFixes,
+    diyFixes: d.diyFixes,
+    buyingChecks: d.buyingChecks.length ? d.buyingChecks : undefined,
+    repairSteps: d.repairSteps.length ? d.repairSteps : undefined,
+    parts: d.parts,
+    tools: d.tools,
+    safetyNote: d.safetyNote,
+  };
+}
+
 function InfoList({ title, icon, items }: { title: string; icon: IoniconName; items: string[] }) {
   return (
     <View style={styles.infoBlock}>
@@ -127,7 +173,17 @@ function StatChip({ icon, label, value }: { icon: IoniconName; label: string; va
   );
 }
 
-function DiagnosisCard({ suggestion, featured = false }: { suggestion: DiagnosisSuggestion; featured?: boolean }) {
+function DiagnosisCard({
+  suggestion,
+  featured = false,
+  featuredLabel = 'Best Match From Your Symptoms',
+  confidence,
+}: {
+  suggestion: DiagnosisSuggestion;
+  featured?: boolean;
+  featuredLabel?: string;
+  confidence?: number;
+}) {
   const [expanded, setExpanded] = useState(featured);
   const urgency = URGENCY_META[suggestion.urgency];
   const difficulty = DIFFICULTY_META[suggestion.difficulty];
@@ -137,7 +193,7 @@ function DiagnosisCard({ suggestion, featured = false }: { suggestion: Diagnosis
       {featured && (
         <View style={styles.featuredHeader}>
           <Ionicons name="sparkles-outline" size={14} color="#60a5fa" />
-          <Text style={styles.featuredLabel}>Best Match From Your Symptoms</Text>
+          <Text style={styles.featuredLabel}>{featuredLabel}</Text>
         </View>
       )}
 
@@ -164,6 +220,12 @@ function DiagnosisCard({ suggestion, featured = false }: { suggestion: Diagnosis
           <Ionicons name={difficulty.icon} size={12} color="#94a3b8" />
           <Text style={styles.difficultyText}>{difficulty.label}</Text>
         </View>
+        {confidence != null && (
+          <View style={styles.confidenceBadge}>
+            <Ionicons name="stats-chart-outline" size={12} color="#93c5fd" />
+            <Text style={styles.confidenceText}>{Math.round(confidence * 100)}% match</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.statGrid}>
@@ -210,6 +272,29 @@ export default function FixMyCarScreen() {
   const [category, setCategory] = useState<CategoryFilter>('all');
   const [query, setQuery] = useState('');
   const [activeStarter, setActiveStarter] = useState<string>('noise');
+  const [aiStatus, setAiStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [aiResult, setAiResult] = useState<DiagnoseResult | null>(null);
+  const [aiError, setAiError] = useState('');
+
+  const runAiDiagnosis = async () => {
+    const trimmed = query.trim();
+    if (!trimmed || aiStatus === 'loading') {
+      return;
+    }
+    setAiStatus('loading');
+    setAiError('');
+    try {
+      const result = await diagnoseProblem(trimmed, {
+        category: category === 'all' ? undefined : category,
+        maxResults: 3,
+      });
+      setAiResult(result);
+      setAiStatus('done');
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Diagnosis failed. Try again.');
+      setAiStatus('error');
+    }
+  };
 
   const filteredSuggestions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -254,6 +339,9 @@ export default function FixMyCarScreen() {
     setActiveStarter('');
     setCategory('all');
     setQuery('');
+    setAiStatus('idle');
+    setAiResult(null);
+    setAiError('');
   };
 
   return (
@@ -328,6 +416,58 @@ export default function FixMyCarScreen() {
           )}
         </View>
 
+        <TouchableOpacity
+          activeOpacity={0.85}
+          style={[styles.askAiButton, (!query.trim() || aiStatus === 'loading') && styles.askAiButtonDisabled]}
+          onPress={runAiDiagnosis}
+          disabled={!query.trim() || aiStatus === 'loading'}
+        >
+          {aiStatus === 'loading' ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons name="sparkles" size={16} color="#fff" />
+          )}
+          <Text style={styles.askAiButtonText}>
+            {aiStatus === 'loading' ? 'Diagnosing your symptom…' : 'Ask AI to diagnose this'}
+          </Text>
+        </TouchableOpacity>
+
+        {aiStatus === 'error' && (
+          <View style={styles.aiErrorBox}>
+            <Ionicons name="warning-outline" size={16} color="#fca5a5" style={{ marginTop: 1 }} />
+            <Text style={styles.aiErrorText}>{aiError}</Text>
+          </View>
+        )}
+
+        {aiStatus === 'done' && aiResult && (
+          aiResult.diagnoses.length > 0 ? (
+            <View style={styles.aiSection}>
+              <View style={styles.aiSectionHeader}>
+                <Ionicons name="sparkles" size={14} color="#60a5fa" />
+                <Text style={styles.aiSectionTitle}>AI Diagnosis</Text>
+              </View>
+              <Text style={styles.aiSectionQuery} numberOfLines={2}>For: “{aiResult.query}”</Text>
+              {aiResult.diagnoses.map((d, i) => (
+                <DiagnosisCard
+                  key={`ai-${i}`}
+                  suggestion={aiToSuggestion(d, i)}
+                  featured={i === 0}
+                  featuredLabel="AI Top Match"
+                  confidence={d.confidence}
+                />
+              ))}
+              <Text style={styles.aiDisclaimer}>{aiResult.disclaimer}</Text>
+            </View>
+          ) : (
+            <View style={styles.aiErrorBox}>
+              <Ionicons name="help-circle-outline" size={16} color="#94a3b8" style={{ marginTop: 1 }} />
+              <Text style={styles.aiEmptyText}>
+                Not enough detail to diagnose. Add what you hear, feel, or see — and when it happens (turning, braking, over bumps).
+              </Text>
+            </View>
+          )
+        )}
+
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -361,6 +501,11 @@ export default function FixMyCarScreen() {
 
         {filteredSuggestions.length > 0 ? (
           <>
+            <View style={styles.libraryHeader}>
+              <Ionicons name="library-outline" size={14} color="#94a3b8" />
+              <Text style={styles.libraryHeaderText}>Common Symptom Library</Text>
+            </View>
+
             <DiagnosisCard suggestion={featuredSuggestion} featured />
 
             <View style={styles.resultsHeader}>
@@ -559,6 +704,103 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
     fontWeight: '700',
+  },
+  askAiButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 48,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 14,
+    marginBottom: 14,
+  },
+  askAiButtonDisabled: {
+    backgroundColor: '#1e293b',
+  },
+  askAiButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  aiSection: {
+    marginBottom: 16,
+  },
+  aiSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  aiSectionTitle: {
+    color: '#93c5fd',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  aiSectionQuery: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginBottom: 12,
+  },
+  aiDisclaimer: {
+    color: '#64748b',
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  aiErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#151515',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    padding: 12,
+    marginBottom: 14,
+  },
+  aiErrorText: {
+    flex: 1,
+    color: '#fca5a5',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  aiEmptyText: {
+    flex: 1,
+    color: '#94a3b8',
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  libraryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  libraryHeaderText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+  },
+  confidenceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#0d1f33',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1e3a5f',
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+  },
+  confidenceText: {
+    color: '#93c5fd',
+    fontSize: 11,
+    fontWeight: '800',
   },
   card: {
     backgroundColor: '#1a1a1a',
