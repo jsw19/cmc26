@@ -62,7 +62,7 @@ export default function CameraScreen() {
   const { vehiclePart = 'unknown' } = useLocalSearchParams<{ vehiclePart: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [analyzing, setAnalyzing] = useState(false);
-  const [useLocal, setUseLocal] = useState(false);
+  const [useLocal, setUseLocal] = useState(true);
   const cameraRef = useRef<CameraView>(null);
   const { addResult, setPendingResult } = useInspection();
 
@@ -197,19 +197,19 @@ export default function CameraScreen() {
           {/* Mode toggle */}
           <View style={styles.modeToggle}>
             <TouchableOpacity
+              style={[styles.modeBtn, useLocal && styles.modeBtnActive]}
+              onPress={() => setUseLocal(true)}
+            >
+              <Text style={[styles.modeBtnText, useLocal && styles.modeBtnTextActive]}>
+                On-Device Scan
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.modeBtn, !useLocal && styles.modeBtnActive]}
               onPress={() => setUseLocal(false)}
             >
               <Text style={[styles.modeBtnText, !useLocal && styles.modeBtnTextActive]}>
                 AI Scan
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeBtn, useLocal && styles.modeBtnActive]}
-              onPress={() => setUseLocal(true)}
-            >
-              <Text style={[styles.modeBtnText, useLocal && styles.modeBtnTextActive]}>
-                Local Scan
               </Text>
             </TouchableOpacity>
           </View>
@@ -219,7 +219,7 @@ export default function CameraScreen() {
               <View style={styles.analyzingContainer}>
                 <ActivityIndicator size="large" color="#3b82f6" />
                 <Text style={styles.analyzingText}>
-                  {useLocal ? 'Analysing locally...' : 'Analyzing with AI...'}
+                  {useLocal ? 'Analysing on-device...' : 'Analyzing with AI...'}
                 </Text>
               </View>
             ) : (

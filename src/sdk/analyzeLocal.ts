@@ -1,23 +1,32 @@
 /**
  * analyzeLocal.ts
  *
- * On-device vehicle image analysis using HSV pixel classification with
- * grid-based spatial localisation and part-specific detectors.
+ * On-device vehicle image analysis using HSV pixel classification, luminance
+ * gradient (edge) analysis, and grid-based spatial localisation with
+ * part-specific detectors. Runs fully offline — no API key, no network, no
+ * per-scan cost. This is the app's primary inspection engine.
  *
- * Algorithm (v2):
+ * Algorithm (v3):
  *  1. Decode base64 JPEG -> raw RGBA pixel data (via jpeg-js)
  *  2. Adaptive subsampling caps work at ~250k samples regardless of resolution
  *  3. Partition the image into a 6x6 grid (36 zones)
- *  4. Per-pixel HSV classification with part-specific detectors:
- *       - Rust    : warm hue, mid saturation, mid value (tighter on engine bay
- *                   to exclude vivid orange caps and plastics)
- *       - Dark    : low V, low S (heavy corrosion / oil / burnt metal)
- *       - Coolant : vivid green or pink (engine bay only - antifreeze tells)
- *       - Glare   : near-white blown-out highlights (excluded from analysable)
- *  5. Compute global ratio AND worst-cell ratio per category
- *  6. Map ratio -> severity; a concentrated worst cell (>=40%) bumps severity
- *  7. Localise findings using the 3x3 quadrant the worst cell falls in
- *  8. Return an InspectionResult with the same shape as the Claude analyser
+ *  4. Per-sample, accumulate per zone:
+ *       - HSV classification (rust / dark / coolant) with part-specific bands
+ *       - luminance + edge energy (|dL/dx| + |dL/dy|) for texture/anomaly work
+ *       - glare (blown highlights) excluded from the analysable set
+ *  5. Image-quality gate: too dark / glare-blown / featureless photos return an
+ *     honest "retake" result instead of a misleading "no damage found"
+ *  6. Map global + worst-cell ratios -> severity; a concentrated worst cell
+ *     bumps severity (clustered damage beats scattered noise)
+ *  7. Body-panel parts get a conservative localized surface-anomaly check
+ *     (possible dent/scratch) from edge clustering — hedged, low confidence
+ *  8. Return an InspectionResult (same shape as every other analysis path)
+ *
+ * Honest limitations: colour + edge heuristics flag *visual indicators*, not
+ * confirmed defects. Confidence is capped at 0.88. They cannot reliably
+ * distinguish rust from paint/dirt, or a dent from a body line or reflection —
+ * findings are framed as "possible" and a hands-on inspection is recommended
+ * for anything moderate or severe.
  */
 
 import jpeg from 'jpeg-js';
@@ -56,6 +65,11 @@ function rgbToHsv(r: number, g: number, b: number): [number, number, number] {
   }
 
   return [h, max === 0 ? 0 : d / max, max];
+}
+
+/** Rec. 601 luma (0-1) from RGB 0-255. */
+function luma(r: number, g: number, b: number): number {
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
 
 // --- Part-specific HSV detectors --------------------------------------------
@@ -104,6 +118,12 @@ function detectorsFor(part: VehiclePart): Detectors {
   }
 }
 
+// Smooth body panels where a localized edge/shadow cluster may be a dent or
+// scratch. Excludes underbody/engine_bay/brakes (busy by nature) and unknown.
+const PANEL_PARTS = new Set<VehiclePart>([
+  'front', 'rear', 'driver_side', 'passenger_side', 'roof',
+]);
+
 // --- Adaptive luminance normalisation ----------------------------------------
 
 /**
@@ -144,22 +164,28 @@ function computeVBoost(meanV: number): number {
 const GRID = 6; // 6x6 cells, mapped to 3x3 quadrants for labelling
 const MAX_SAMPLES = 250_000; // cap effective pixel work for large images
 const MIN_CELL_SAMPLES = 200; // skip near-empty cells when picking the worst
+const EDGE_THRESHOLD = 0.12;  // luma step (0-1) counted as an edge sample
 
 interface CellStats {
   analysable: number;
   rust:    number;
   dark:    number;
   coolant: number;
+  sumLum:  number; // sum of luma over analysable samples
+  edge:    number; // count of analysable samples whose local gradient > EDGE_THRESHOLD
 }
 
 interface ScanResult {
   cells: CellStats[];
   totalAnalysable: number;
+  totalSampled: number;  // analysable + glare
+  glareSamples: number;
+  edgeSamples: number;   // total edge count over analysable
 }
 
 function emptyCells(): CellStats[] {
   return Array.from({ length: GRID * GRID }, () => ({
-    analysable: 0, rust: 0, dark: 0, coolant: 0,
+    analysable: 0, rust: 0, dark: 0, coolant: 0, sumLum: 0, edge: 0,
   }));
 }
 
@@ -173,16 +199,22 @@ function scanImage(
   const stride = Math.max(1, Math.round(Math.sqrt((width * height) / MAX_SAMPLES)));
   const cells = emptyCells();
   let totalAnalysable = 0;
+  let totalSampled = 0;
+  let glareSamples = 0;
+  let edgeSamples = 0;
 
   for (let y = 0; y < height; y += stride) {
     const cellRow = Math.min(GRID - 1, Math.floor((y / height) * GRID));
     const rowBase = cellRow * GRID;
     for (let x = 0; x < width; x += stride) {
       const i = (y * width + x) * 4;
-      const [h, s, v] = rgbToHsv(data[i], data[i + 1], data[i + 2]);
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      const [h, s, v] = rgbToHsv(r, g, b);
+
+      totalSampled++;
 
       // Glare check uses raw V — boost doesn't make blown highlights disappear.
-      if (det.isGlare(h, s, v)) continue;
+      if (det.isGlare(h, s, v)) { glareSamples++; continue; }
 
       // Apply luminance boost for classification only. A dark underbody shot
       // with meanV ~0.12 would have most rust pixels fall below the V floor
@@ -195,13 +227,57 @@ function scanImage(
       cell.analysable++;
       totalAnalysable++;
 
+      // Luma + local gradient (forward difference to the next sampled pixel).
+      const L = luma(r, g, b);
+      cell.sumLum += L;
+      if (x + stride < width && y + stride < height) {
+        const ix = (y * width + (x + stride)) * 4;
+        const iy = ((y + stride) * width + x) * 4;
+        const gx = Math.abs(L - luma(data[ix], data[ix + 1], data[ix + 2]));
+        const gy = Math.abs(L - luma(data[iy], data[iy + 1], data[iy + 2]));
+        if (gx + gy > EDGE_THRESHOLD) { cell.edge++; edgeSamples++; }
+      }
+
       if (det.isRust(h, s, vAdj)) cell.rust++;
       if (det.isDark(h, s, vAdj)) cell.dark++;
       if (det.isCoolant && det.isCoolant(h, s, vAdj)) cell.coolant++;
     }
   }
 
-  return { cells, totalAnalysable };
+  return { cells, totalAnalysable, totalSampled, glareSamples, edgeSamples };
+}
+
+// --- Image quality gate -----------------------------------------------------
+
+interface ImageQuality {
+  usable: boolean;
+  caveats: string[];
+  /** Short reason for an unusable image, used to build the retake summary. */
+  blocker?: string;
+}
+
+function assessQuality(scan: ScanResult, meanV: number): ImageQuality {
+  const caveats: string[] = [];
+  const glareRatio = scan.totalSampled > 0 ? scan.glareSamples / scan.totalSampled : 0;
+  const sharpness = scan.totalAnalysable > 0 ? scan.edgeSamples / scan.totalAnalysable : 0;
+
+  // Hard blockers — too degraded to give an honest result.
+  if (scan.totalAnalysable < 500) {
+    return { usable: false, caveats, blocker: 'almost the entire frame is unreadable (glare or darkness)' };
+  }
+  if (meanV < 0.07) {
+    return { usable: false, caveats, blocker: 'the photo is too dark to analyse' };
+  }
+  if (glareRatio > 0.65) {
+    return { usable: false, caveats, blocker: 'most of the frame is blown-out glare' };
+  }
+
+  // Soft caveats — analysable, but flag reduced reliability.
+  if (meanV < 0.14) caveats.push('Image is dark — add light or use the flash for a more reliable scan.');
+  if (glareRatio > 0.4) caveats.push('Strong glare covers part of the frame — try a different angle or softer light.');
+  if (sharpness < 0.02) caveats.push('Image looks low-detail or out of focus — hold steady and refocus, then rescan.');
+
+  return { usable: true, caveats };
 }
 
 // --- Severity & spatial helpers ---------------------------------------------
@@ -283,6 +359,45 @@ function analyseCategory(
   };
 }
 
+/**
+ * Conservative localized surface-anomaly check for smooth body panels.
+ * A dent, scratch, or crease shows up as a cell whose edge density is far
+ * above the panel's median while the panel is otherwise smooth. Trim lines,
+ * badges, and reflections can trigger this too, so confidence stays low and
+ * the finding is framed as "possible".
+ */
+function detectSurfaceAnomaly(cells: CellStats[]): DamageItem | null {
+  const ratios: { idx: number; r: number }[] = [];
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    if (c.analysable < MIN_CELL_SAMPLES) continue;
+    ratios.push({ idx: i, r: c.edge / c.analysable });
+  }
+  if (ratios.length < 6) return null;
+
+  const sorted = [...ratios].sort((a, b) => a.r - b.r);
+  const median = sorted[Math.floor(sorted.length / 2)].r;
+  const worst = sorted[sorted.length - 1];
+
+  // Otherwise-smooth panel (low median) with one clearly busier zone.
+  const isLocalizedSpike =
+    median < 0.08 && worst.r >= 0.32 && worst.r >= median * 4 + 0.05;
+  if (!isLocalizedSpike) return null;
+
+  const severity: Severity = worst.r >= 0.5 ? 'moderate' : 'minor';
+  return {
+    type: 'dent',
+    location: cellLabel(worst.idx),
+    severity,
+    confidence: 0.45,
+    description:
+      `A localized cluster of edges/shadows in the ${cellLabel(worst.idx)} zone ` +
+      `(${(worst.r * 100).toFixed(0)}% edge density vs ${(median * 100).toFixed(0)}% panel average) ` +
+      `may indicate a dent, scratch, crease, or a body line/trim feature. On-device ` +
+      `analysis cannot confirm panel damage — check this spot by eye in raking light.`,
+  };
+}
+
 // --- Result text generation -------------------------------------------------
 
 const PART_LABELS: Record<VehiclePart, string> = {
@@ -300,17 +415,24 @@ const PART_LABELS: Record<VehiclePart, string> = {
 function buildSummary(
   part: VehiclePart,
   damages: DamageItem[],
-  overall: Severity
+  overall: Severity,
+  caveats: string[],
 ): string {
   const label = PART_LABELS[part];
+  const caveatSuffix = caveats.length ? ` ${caveats.join(' ')}` : '';
+
   if (overall === 'none') {
-    return `The ${label} appears to be in good condition with no significant damage detected by local analysis.`;
+    return (
+      `The ${label} shows no clear damage indicators in this on-device scan. ` +
+      `This checks for visual signs (rust colour, dark patches, surface anomalies) ` +
+      `and is not a substitute for a hands-on inspection.${caveatSuffix}`
+    );
   }
   const types = [...new Set(damages.map((d) => d.type))].join(' and ');
   const zones = [...new Set(damages.map((d) => d.location))].slice(0, 3).join(', ');
   return (
-    `The ${label} shows ${overall} ${types} based on local image analysis, ` +
-    `concentrated in the ${zones}. Consider confirming with AI cloud analysis for greater accuracy.`
+    `The ${label} shows possible ${overall} ${types} based on on-device image ` +
+    `analysis, concentrated in the ${zones}.${caveatSuffix}`
   );
 }
 
@@ -321,7 +443,7 @@ function buildRecommendations(part: VehiclePart, damages: DamageItem[]): string[
   const hasModerate = damages.some((d) => d.severity === 'moderate');
 
   if (hasSevere) {
-    recs.push('Seek professional inspection immediately — severe damage indicators found.');
+    recs.push('Seek a professional inspection — severe damage indicators were detected.');
   }
   if (has('rust') && hasModerate) {
     recs.push('Treat rust with a rust converter and apply a protective anti-corrosion coating.');
@@ -332,26 +454,32 @@ function buildRecommendations(part: VehiclePart, damages: DamageItem[]): string[
   if (has('corrosion')) {
     recs.push('Inspect dark areas for heavy corrosion buildup or oil leaks.');
   }
+  if (has('dent')) {
+    recs.push('Inspect the flagged panel zone by eye under raking light to confirm a dent or scratch.');
+  }
   if (part === 'engine_bay' && has('leak')) {
     recs.push(
       'Possible fluid leak detected — check the oil pan, valve cover gasket, and cooling system hoses, and have a shop pressure-test before topping up.'
     );
   }
   if (recs.length === 0) {
-    recs.push('Continue regular vehicle maintenance and inspection schedule.');
+    recs.push('Continue your regular vehicle maintenance and inspection schedule.');
   }
-  recs.push('For a more detailed analysis, use the AI (cloud) scan option.');
+  if (hasModerate || hasSevere) {
+    recs.push('On-device analysis flags visual indicators only — confirm moderate or severe findings with a mechanic.');
+  }
   return recs;
 }
 
 // --- Public API -------------------------------------------------------------
 
 /**
- * Analyze a vehicle image on-device using HSV pixel classification with
- * grid-based spatial localisation and part-specific detectors.
+ * Analyze a vehicle image on-device using HSV pixel classification, edge
+ * analysis, and grid-based spatial localisation with part-specific detectors.
  *
- * Works fully offline — no API key required. Less accurate than cloud AI
- * vision but useful as a fast pre-screen or offline fallback. Adaptive
+ * Works fully offline — no API key required. Flags visual indicators (rust
+ * colour, dark/corrosion patches, coolant colour, localized panel anomalies)
+ * rather than confirming defects; confidence is capped at 0.88. Adaptive
  * subsampling keeps runtime bounded even on 4K images.
  *
  * @param base64Image - Base64-encoded JPEG (no data-URI prefix)
@@ -374,7 +502,28 @@ export async function analyzeVehicleImageLocally(
   const meanV = quickMeanV(data as Uint8Array, width, height, det.isGlare);
   const vBoost = computeVBoost(meanV);
 
-  const { cells, totalAnalysable } = scanImage(data as Uint8Array, width, height, det, vBoost);
+  const scan = scanImage(data as Uint8Array, width, height, det, vBoost);
+  const { cells, totalAnalysable } = scan;
+
+  // --- Quality gate -------------------------------------------------------
+  const quality = assessQuality(scan, meanV);
+  if (!quality.usable) {
+    return {
+      id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      timestamp: Date.now(),
+      vehiclePart,
+      imageUri,
+      damages: [],
+      overallSeverity: 'none',
+      summary:
+        `This scan couldn't be completed reliably because ${quality.blocker}. ` +
+        `Retake the photo of the ${PART_LABELS[vehiclePart]} in even lighting, holding the camera steady.`,
+      recommendations: [
+        'Retake the photo with better, even lighting and the subject in focus.',
+        'Avoid direct sun reflections and deep shadow on the area you want to inspect.',
+      ],
+    };
+  }
 
   const damages: DamageItem[] = [];
 
@@ -394,7 +543,7 @@ export async function analyzeVehicleImageLocally(
       description:
         `Rust-coloured pixels account for ~${(rust.globalRatio * 100).toFixed(1)}% of the image ` +
         `(peak ${(rust.worstRatio * 100).toFixed(1)}% in the ${rust.worstLabel} zone). ` +
-        `This indicates ${rustSeverity} surface rust or corrosion.`,
+        `This indicates possible ${rustSeverity} surface rust or corrosion.`,
     });
   }
 
@@ -443,6 +592,12 @@ export async function analyzeVehicleImageLocally(
     }
   }
 
+  // --- Surface anomaly (body panels only) ---------------------------------
+  if (PANEL_PARTS.has(vehiclePart)) {
+    const anomaly = detectSurfaceAnomaly(cells);
+    if (anomaly) damages.push(anomaly);
+  }
+
   const overallSeverity = pickOverallSeverity(damages.map((d) => d.severity));
 
   return {
@@ -452,7 +607,7 @@ export async function analyzeVehicleImageLocally(
     imageUri,
     damages,
     overallSeverity,
-    summary: buildSummary(vehiclePart, damages, overallSeverity),
+    summary: buildSummary(vehiclePart, damages, overallSeverity, quality.caveats),
     recommendations: buildRecommendations(vehiclePart, damages),
   };
 }
