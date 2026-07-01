@@ -13,6 +13,7 @@ CheckMyCar is a mobile app for AI-powered vehicle inspection, pre-purchase inspe
 - **AI**: Claude API (`claude-sonnet-4-6`) for image analysis via vision
 - **State**: React Context + useReducer (no Redux)
 - **Persistence**: AsyncStorage (inspection history), expo-file-system (images)
+- **Reports**: expo-print (HTML→PDF) + expo-sharing (share sheet)
 
 ## Project Structure
 
@@ -43,7 +44,8 @@ checkmycar/
 │   │   ├── costEstimate.ts       # Repair cost estimator (regional multipliers)
 │   │   ├── tradeInEstimate.ts    # Dealer trade-in + private-party value estimator
 │   │   ├── sellingPrice.ts       # FB Marketplace / Craigslist listing price estimator
-│   │   └── preownedGuide.ts      # Pre-owned market range finder by budget + category
+│   │   ├── preownedGuide.ts      # Pre-owned market range finder by budget + category
+│   │   └── reportHtml.ts         # Builds printable HTML report from InspectionResult
 │   ├── screens/                  # View components rendered inside container tabs
 │   │   ├── HomeScreen.tsx        # Inspection launcher (Inspect tab)
 │   │   ├── HistoryScreen.tsx     # Inspection history list (Inspect tab)
@@ -135,6 +137,13 @@ const estimate = estimateSellingPrice(vehicleInfo, overallSeverity, location);
 ```
 Builds on the same depreciation model as `estimateTradeInValue`. Outputs three price tiers (quick-sale, ideal, list-at) and per-platform listing prices + tips for Facebook Marketplace and Craigslist. `negotiationBuffer` scales with condition (6–12%).
 
+### buildInspectionReportHtml
+Builds a self-contained printable HTML document from an `InspectionResult` (photo, severity, summary, damages table, cost/trade-in/selling estimates, recommendations). Pure/testable — no UI deps. The photo, if included, is passed as a data URI so the PDF has no external references. All user/AI content is HTML-escaped.
+```ts
+const html = buildInspectionReportHtml(result, { imageDataUri });
+```
+The Analysis screen feeds this to `expo-print` (`printToFileAsync`) → PDF, then `expo-sharing` (`shareAsync`) via the "Share PDF Report" button.
+
 ### findPreownedCars
 ```ts
 const guide = findPreownedCars(budget, location, category?);
@@ -203,6 +212,7 @@ Container tab with a `SegmentedControl` toggling two views:
 - **Trade-In Value** section — opens `VehicleInfoModal`, saves to `InspectionResult`
 - **Sell on Marketplace** section — same modal (mode: `'sell'`), shows `SellingPriceCard` with platform tabs
 - Recommendations
+- **Share PDF Report** — `buildInspectionReportHtml` → `expo-print` PDF → `expo-sharing` (photo embedded as data URI; best-effort if the image can't be read)
 - Delete / New Inspection actions
 
 ### Buyer Check (`app/buyercheck.tsx`)
@@ -277,7 +287,7 @@ npm test                  # Run SDK unit tests
 ## Testing
 
 Pure SDK functions have unit tests in `src/sdk/__tests__/` (`decodeVin`,
-`costEstimate`, `sellingPrice`, `tradeInEstimate`, `preownedGuide`). They run on
+`costEstimate`, `sellingPrice`, `tradeInEstimate`, `preownedGuide`, `reportHtml`). They run on
 Node's built-in test runner (`node:test`) with native TypeScript type-stripping
 — no Jest/Babel setup. Because every SDK file's only import is `import type`
 (erased at runtime), tests import the modules directly with explicit `.ts`

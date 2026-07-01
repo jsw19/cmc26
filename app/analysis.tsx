@@ -1,5 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Print from 'expo-print';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Sharing from 'expo-sharing';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -21,6 +24,7 @@ import { useInspection } from '../src/context/InspectionContext';
 import { useLocationCostEstimate } from '../src/hooks/useLocationCostEstimate';
 import { useTradeInEstimate } from '../src/hooks/useTradeInEstimate';
 import { useSellingPrice } from '../src/hooks/useSellingPrice';
+import { buildInspectionReportHtml } from '../src/sdk/reportHtml';
 import type { CostEstimate, DamageItem, PlatformListing, SellingPriceEstimate, TradeInEstimate, VehicleCategory } from '../src/sdk/types';
 
 const DAMAGE_ICONS: Record<string, string> = {
@@ -403,6 +407,7 @@ export default function AnalysisScreen() {
   const { status: sellStatus, getEstimate: getSellingEstimate } = useSellingPrice();
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [modalMode, setModalMode] = useState<'tradeIn' | 'sell'>('tradeIn');
+  const [exporting, setExporting] = useState(false);
   const [vehicleForm, setVehicleForm] = useState<{
     year: string; make: string; model: string; mileage: string; category: VehicleCategory;
   }>({ year: '', make: '', model: '', mileage: '', category: 'midsize' });
@@ -487,6 +492,41 @@ export default function AnalysisScreen() {
     const estimate = await getEstimate(inspection.damages);
     if (estimate) {
       await updateResult({ ...inspection, costEstimate: estimate });
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      // Embed the photo as a data URI so the PDF is self-contained. Best-effort:
+      // if the image can't be read, the report is still generated without it.
+      let imageDataUri: string | undefined;
+      try {
+        const base64 = await FileSystem.readAsStringAsync(inspection.imageUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        imageDataUri = `data:image/jpeg;base64,${base64}`;
+      } catch {
+        imageDataUri = undefined;
+      }
+
+      const html = buildInspectionReportHtml(inspection, { imageDataUri });
+      const { uri } = await Print.printToFileAsync({ html });
+
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'application/pdf',
+          dialogTitle: 'Share inspection report',
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('Report saved', `PDF created at:\n${uri}`);
+      }
+    } catch (err) {
+      Alert.alert('Export failed', err instanceof Error ? err.message : String(err));
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -671,6 +711,22 @@ export default function AnalysisScreen() {
           </Text>
         </View>
 
+        {/* Share as PDF */}
+        <TouchableOpacity
+          style={[styles.shareBtn, exporting && styles.estimateBtnDisabled]}
+          onPress={handleExportPdf}
+          disabled={exporting}
+        >
+          {exporting ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <>
+              <Ionicons name="share-outline" size={18} color="#fff" />
+              <Text style={styles.shareBtnText}>Share PDF Report</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
         {/* Actions */}
         <View style={styles.actions}>
           <TouchableOpacity
@@ -839,6 +895,20 @@ const styles = StyleSheet.create({
     color: '#555',
     lineHeight: 16,
   },
+  shareBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    backgroundColor: '#1a1a1a',
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  shareBtnText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   actions: {
     flexDirection: 'row',
     paddingHorizontal: 16,

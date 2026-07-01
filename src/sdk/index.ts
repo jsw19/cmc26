@@ -13,6 +13,8 @@ export type {
   FixUrgency,
 } from './diagnoseProblem';
 export { estimateRepairCosts } from './costEstimate';
+export { buildInspectionReportHtml, escapeHtml } from './reportHtml';
+export type { ReportOptions } from './reportHtml';
 export { findPreownedCars } from './preownedGuide';
 export { estimateSellingPrice } from './sellingPrice';
 export { estimateTradeInValue } from './tradeInEstimate';
