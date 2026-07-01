@@ -24,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { SeverityBadge } from '../../src/components/SeverityBadge';
 import { useSellingPrice } from '../../src/hooks/useSellingPrice';
 import { analyzeVehicleImage } from '../../src/sdk/analyze';
+import { decodeVin } from '../../src/sdk/decodeVin';
 import type {
   InspectionResult,
   PlatformListing,
@@ -435,6 +436,8 @@ function PriceResults({ estimate }: { estimate: SellingPriceEstimate }) {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
+type VinStatus = 'idle' | 'loading' | 'done' | 'error';
+
 export default function SellScreen() {
   const [year, setYear]       = useState('');
   const [make, setMake]       = useState('');
@@ -443,7 +446,41 @@ export default function SellScreen() {
   const [category, setCategory]   = useState<VehicleCategory>('midsize');
   const [manualCondition, setManualCondition] = useState<Severity>('none');
   const [scanResults, setScanResults] = useState<Partial<Record<VehiclePart, InspectionResult>>>({});
+  const [vin, setVin] = useState('');
+  const [vinStatus, setVinStatus] = useState<VinStatus>('idle');
+  const [vinNote, setVinNote] = useState('');
   const { status, result, error, getEstimate } = useSellingPrice();
+
+  const handleDecodeVin = async () => {
+    Keyboard.dismiss();
+    setVinStatus('loading');
+    setVinNote('');
+    try {
+      const decoded = await decodeVin(vin);
+      if (!decoded.valid && !decoded.make && !decoded.year) {
+        setVinStatus('error');
+        setVinNote(decoded.errorText ?? 'Could not decode that VIN.');
+        return;
+      }
+      // Auto-fill whatever the decode resolved; leave existing fields untouched
+      // when a field could not be determined.
+      if (decoded.year) setYear(String(decoded.year));
+      if (decoded.make) setMake(decoded.make);
+      if (decoded.model) setModel(decoded.model);
+      if (decoded.category) setCategory(decoded.category);
+
+      const filled = [decoded.year, decoded.make, decoded.model].filter(Boolean).join(' ');
+      setVinStatus('done');
+      setVinNote(
+        decoded.source === 'nhtsa'
+          ? `Filled: ${filled || 'partial details'}`
+          : `${decoded.errorText ?? 'Offline decode.'}${decoded.year ? ` Year ${decoded.year}.` : ''}`,
+      );
+    } catch {
+      setVinStatus('error');
+      setVinNote('VIN lookup failed. Enter details manually.');
+    }
+  };
 
   const derivedCondition = deriveSeverity(scanResults);
   // AI-derived condition takes priority; manual picker is the fallback
@@ -493,6 +530,47 @@ export default function SellScreen() {
           </View>
 
           <View style={styles.inputCard}>
+            {/* VIN decode — auto-fills year, make, model, and type */}
+            <View style={styles.vinHeader}>
+              <Text style={styles.inputLabel}>VIN (optional)</Text>
+              <Text style={styles.vinHint}>Auto-fills the fields below</Text>
+            </View>
+            <View style={styles.vinRow}>
+              <TextInput
+                style={[styles.textInput, styles.vinInput]}
+                placeholder="17-character VIN"
+                placeholderTextColor="#555"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={17}
+                value={vin}
+                onChangeText={(t) => setVin(t.toUpperCase())}
+              />
+              <TouchableOpacity
+                style={[styles.vinBtn, (vinStatus === 'loading' || vin.trim().length === 0) && styles.vinBtnDisabled]}
+                onPress={handleDecodeVin}
+                disabled={vinStatus === 'loading' || vin.trim().length === 0}
+              >
+                {vinStatus === 'loading' ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.vinBtnText}>Decode</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+            {vinNote !== '' && (
+              <View style={styles.vinNoteRow}>
+                <Ionicons
+                  name={vinStatus === 'error' ? 'alert-circle-outline' : 'checkmark-circle-outline'}
+                  size={13}
+                  color={vinStatus === 'error' ? '#f87171' : '#4ade80'}
+                />
+                <Text style={[styles.vinNoteText, vinStatus === 'error' && { color: '#f87171' }]}>
+                  {vinNote}
+                </Text>
+              </View>
+            )}
+
             {/* Year + Make */}
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
@@ -689,6 +767,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
+  // VIN decode
+  vinHeader: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginTop: 4 },
+  vinHint: { fontSize: 10, color: '#555' },
+  vinRow: { flexDirection: 'row', gap: 8, alignItems: 'stretch' },
+  vinInput: { flex: 1, letterSpacing: 1 },
+  vinBtn: {
+    paddingHorizontal: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#92400e',
+    borderRadius: 8,
+    minWidth: 84,
+  },
+  vinBtnDisabled: { opacity: 0.5 },
+  vinBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  vinNoteRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6 },
+  vinNoteText: { flex: 1, fontSize: 11, color: '#4ade80', lineHeight: 15 },
+
   pillScroll: { marginBottom: 4 },
   pill: {
     paddingHorizontal: 14,

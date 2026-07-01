@@ -20,28 +20,38 @@ CheckMyCar is a mobile app for AI-powered vehicle inspection, pre-purchase inspe
 checkmycar/
 ├── app/                          # Expo Router screens
 │   ├── (tabs)/
-│   │   ├── _layout.tsx           # Bottom tab bar (Home, History, Buy, Sell)
-│   │   ├── index.tsx             # Home screen — inspection launcher + quick cards
-│   │   ├── history.tsx           # Inspection history list
+│   │   ├── _layout.tsx           # Bottom tab bar — 5 tabs (Inspect, Buy, Sell, Fix, Learn)
+│   │   ├── index.tsx             # Inspect tab — container: Home ↔ History segmented toggle
 │   │   ├── preowned.tsx          # Buy tab — pre-owned market range guide
-│   │   └── sell.tsx              # Sell tab — AI scan + FB/CL listing price estimator
+│   │   ├── sell.tsx              # Sell tab — AI scan + FB/CL listing price estimator
+│   │   ├── fixmycar.tsx          # Fix tab — symptom starters + AI free-text diagnosis
+│   │   └── license.tsx           # Learn tab — container: License Test ↔ Magazine toggle
 │   ├── _layout.tsx               # Root layout (InspectionProvider, SafeArea)
 │   ├── camera.tsx                # Full-screen camera capture (AI or local scan)
 │   ├── analysis.tsx              # Inspection results (damage, cost, trade-in, sell)
 │   └── buyercheck.tsx            # PPI screen — AI Scan | Checklist | Model Issues | Buyer Tips
 ├── src/
 │   ├── sdk/                      # Reusable SDK — zero UI dependencies
+│   │   ├── __tests__/            # Unit tests for the pure SDK functions
 │   │   ├── index.ts              # Public exports
 │   │   ├── types.ts              # All shared TypeScript types
 │   │   ├── analyze.ts            # Claude API vision call + JSON parsing
 │   │   ├── analyzeLocal.ts       # On-device HSV pixel analysis (offline fallback)
+│   │   ├── decodeVin.ts          # VIN decoder (offline parse + NHTSA vPIC lookup)
 │   │   ├── analyzeCheckItem.ts   # Claude API call scoped to a PPI checklist item
+│   │   ├── diagnoseProblem.ts    # Claude API free-text symptom diagnosis (Fix tab)
 │   │   ├── costEstimate.ts       # Repair cost estimator (regional multipliers)
 │   │   ├── tradeInEstimate.ts    # Dealer trade-in + private-party value estimator
 │   │   ├── sellingPrice.ts       # FB Marketplace / Craigslist listing price estimator
 │   │   └── preownedGuide.ts      # Pre-owned market range finder by budget + category
+│   ├── screens/                  # View components rendered inside container tabs
+│   │   ├── HomeScreen.tsx        # Inspection launcher (Inspect tab)
+│   │   ├── HistoryScreen.tsx     # Inspection history list (Inspect tab)
+│   │   ├── LicenseScreen.tsx     # License knowledge review + quiz (Learn tab)
+│   │   └── MagazineScreen.tsx    # Curated car picks by use-case (Learn tab)
 │   ├── components/
 │   │   ├── SeverityBadge.tsx     # Colored severity pill (none/minor/moderate/severe)
+│   │   ├── SegmentedControl.tsx  # Pill toggle for sibling views in a tab
 │   │   └── InspectionCard.tsx    # History list item card
 │   ├── hooks/
 │   │   ├── useLocationCostEstimate.ts  # Location-aware repair cost hook
@@ -52,7 +62,9 @@ checkmycar/
 │   │   └── InspectionContext.tsx  # Global state: history, pending result, loading
 │   ├── data/
 │   │   ├── inspectionChecklist.ts # PPI checklist items grouped by system
-│   │   └── modelIssues.ts         # Known issues database by make/model
+│   │   ├── modelIssues.ts         # Known issues database by make/model
+│   │   ├── diagnosisSuggestions.ts    # Static symptom→diagnosis DB (Fix tab)
+│   │   └── licenseKnowledgeReview.ts  # License review topics + practice questions
 │   ├── utils/
 │   │   └── storage.ts             # AsyncStorage CRUD for InspectionResult[]
 │   └── polyfills.ts
@@ -84,6 +96,22 @@ Called by the PPI checklist camera. Scopes the Claude prompt to a specific check
 const result = await analyzeCheckItem(base64, savedUri, checkId);
 // → CheckItemAnalysis { verdict: 'ok'|'concern'|'problem', summary, details[] }
 ```
+
+### decodeVin
+Decodes a 17-char VIN to auto-fill `VehicleInfo`. Two layers: (1) pure offline parsing — format + ISO 3779 check-digit validation, model year (position 10, disambiguated via position 7), and manufacturing region (position 1); (2) online enrichment via the free NHTSA vPIC API (no key) for make/model/trim/body class/fuel, from which `inferCategory` derives a `VehicleCategory`. Falls back to the offline layer if the network call fails or times out — never throws for a bad VIN; check `.valid` / `.errorText`.
+```ts
+const decoded = await decodeVin(rawVin);
+// → VinDecodeResult { vin, valid, year?, make?, model?, trim?, category?, countryRegion?, source: 'nhtsa'|'offline', errorText? }
+```
+Wired into the Sell tab's VIN field (`decodeVin` populates year/make/model/type).
+
+### diagnoseProblem
+LLM-backed free-text symptom diagnosis for the Fix tab. Sends a plain-English description ("clunk over bumps when turning left") to Claude and returns ranked, structured diagnoses in the same shape the static `diagnosisSuggestions` DB uses, so results drop straight into the existing card UI. Enums are defined locally (not imported from `src/data/`) to preserve the SDK's zero-UI-dependency rule.
+```ts
+const result = await diagnoseProblem(query, { apiKey, category, vehicle, maxResults });
+// → DiagnoseResult { query, diagnoses: AIDiagnosis[], disclaimer }
+```
+Safety-first prompt: brake/steering/structural failures are forced to urgency `'do_not_drive'`. Returns an empty `diagnoses` array if the description is too vague.
 
 ### estimateRepairCosts
 ```ts
@@ -133,22 +161,29 @@ const guide = findPreownedCars(budget, location, category?);
 
 ## Screens
 
-### Home (`app/(tabs)/index.tsx`)
-- 6-part inspection launcher grid (underbody → engine bay)
-- "Buying a Used Car?" card → `buyercheck`
-- "Selling Your Car?" card → `sell` tab
-- Recent inspections list
-
-### History (`app/(tabs)/history.tsx`)
-- Full inspection history from AsyncStorage
-- Tap any card → `analysis` screen
+### Inspect (`app/(tabs)/index.tsx`)
+Container tab with a `SegmentedControl` toggling two views:
+- **Home** (`src/screens/HomeScreen.tsx`) — 6-part inspection launcher grid; entry cards to Buyer Check, Sell, Fix, and Learn; recent inspections. "See all" flips the segment to History.
+- **History** (`src/screens/HistoryScreen.tsx`) — full inspection history from AsyncStorage; tap any card → `analysis` screen.
 
 ### Buy / Pre-Owned Guide (`app/(tabs)/preowned.tsx`)
 - Enter budget + segment filter
 - Shows market price ranges by vehicle category for user's region
 
+### Fix My Car (`app/(tabs)/fixmycar.tsx`)
+- Problem-starter cards + category filter (suspension, steering, brakes, drivetrain, engine)
+- Free-text symptom box → `diagnoseProblem` (Claude) → ranked `DiagnosisCard`s
+- Falls back to the static `DIAGNOSIS_SUGGESTIONS` keyword DB when offline / no key
+- Each diagnosis: likely causes, quick checks, temp fixes, DIY steps, parts/tools, safety note
+
+### Learn (`app/(tabs)/license.tsx`)
+Container tab with a `SegmentedControl` toggling two views:
+- **License Test** (`src/screens/LicenseScreen.tsx`) — study topics grouped by category (signs, right-of-way, parking, safe driving, impairment, emergencies); per-topic key rules, "watch for" list, memory tip, and practice questions with explanations. Pure static data from `licenseKnowledgeReview.ts` — no API calls.
+- **Magazine** (`src/screens/MagazineScreen.tsx`) — editorial-style curated car picks by use-case (home, commute, family, business, enthusiast); per-car body style, character, maintenance notes, and 1–5 difficulty rating. Fully static content — no API calls.
+
 ### Sell (`app/(tabs)/sell.tsx`)
 - Vehicle info form (year, make, model, mileage, category)
+- **VIN decode** — optional 17-char VIN field; "Decode" calls `decodeVin` and auto-fills year/make/model/type (offline fallback for year + region)
 - **Condition via AI scan** — 6-part camera grid; `deriveSeverity()` picks worst-case across scanned parts; auto-populates condition and dims the manual picker
 - Manual condition picker (fallback when skipping scan)
 - "Get Selling Price Near Me" → `useSellingPrice` hook → `SellingPriceCard`
@@ -236,4 +271,16 @@ npx expo start            # Start dev server
 npx expo start --ios      # iOS simulator
 npx expo start --android  # Android emulator
 npx tsc --noEmit          # Type-check without building
+npm test                  # Run SDK unit tests
 ```
+
+## Testing
+
+Pure SDK functions have unit tests in `src/sdk/__tests__/` (`decodeVin`,
+`costEstimate`, `sellingPrice`, `tradeInEstimate`, `preownedGuide`). They run on
+Node's built-in test runner (`node:test`) with native TypeScript type-stripping
+— no Jest/Babel setup. Because every SDK file's only import is `import type`
+(erased at runtime), tests import the modules directly with explicit `.ts`
+extensions; `tsconfig` enables `allowImportingTsExtensions` for this. Network-
+dependent paths (`decodeVin`'s NHTSA lookup, the `analyze*` Claude calls) are not
+unit-tested — `decodeVin` is exercised via its `offlineOnly` path.

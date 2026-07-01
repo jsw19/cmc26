@@ -1,5 +1,7 @@
 export { analyzeVehicleImage } from './analyze';
 export { analyzeVehicleImageLocally } from './analyzeLocal';
+export { decodeVin, isValidVin, normalizeVin } from './decodeVin';
+export type { DecodeVinOptions, VinDecodeResult } from './decodeVin';
 export { diagnoseProblem } from './diagnoseProblem';
 export type {
   AIDiagnosis,

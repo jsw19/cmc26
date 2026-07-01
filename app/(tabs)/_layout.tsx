@@ -20,18 +20,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
+          title: 'Inspect',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="car-outline" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="history"
-        options={{
-          title: 'History',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time-outline" color={color} size={size} />
           ),
         }}
       />
@@ -42,6 +34,16 @@ export default function TabLayout() {
           headerTitle: 'Pre-Owned Guide',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="storefront-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="sell"
+        options={{
+          title: 'Sell',
+          headerTitle: 'Sell Your Car',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="pricetag-outline" color={color} size={size} />
           ),
         }}
       />
@@ -58,30 +60,10 @@ export default function TabLayout() {
       <Tabs.Screen
         name="license"
         options={{
-          title: 'Test',
-          headerTitle: 'License Test Review',
+          title: 'Learn',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="school-outline" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="magazine"
-        options={{
-          title: 'Magazine',
-          headerTitle: 'Car Magazine',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="newspaper-outline" color={color} size={size} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="sell"
-        options={{
-          title: 'Sell',
-          headerTitle: 'Sell Your Car',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="pricetag-outline" color={color} size={size} />
           ),
         }}
       />

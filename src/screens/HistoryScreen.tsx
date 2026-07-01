@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View, FlatList, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { InspectionCard } from '../../src/components/InspectionCard';
-import { useInspection } from '../../src/context/InspectionContext';
+import { InspectionCard } from '../components/InspectionCard';
+import { useInspection } from '../context/InspectionContext';
 
 export default function HistoryScreen() {
   const { history, removeResult, loading } = useInspection();
