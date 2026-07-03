@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import Constants from 'expo-constants';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
@@ -25,6 +24,7 @@ import { SeverityBadge } from '../../src/components/SeverityBadge';
 import { useSellingPrice } from '../../src/hooks/useSellingPrice';
 import { analyzeVehicleImage } from '../../src/sdk/analyze';
 import { decodeVin } from '../../src/sdk/decodeVin';
+import { getAnthropicApiKey } from '../../src/utils/apiKey';
 import type {
   InspectionResult,
   PlatformListing,
@@ -116,9 +116,7 @@ function ScanCameraModal({
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      const apiKey =
-        (Constants.expoConfig?.extra?.anthropicApiKey as string | undefined)
-        ?? process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+      const apiKey = getAnthropicApiKey();
 
       if (!apiKey) {
         Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');

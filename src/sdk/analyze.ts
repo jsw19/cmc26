@@ -9,6 +9,25 @@ import type {
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
+const REQUEST_TIMEOUT_MS = 60_000;
+// 429 rate-limited, 500 server error, 529 overloaded — worth one retry on mobile networks
+const RETRYABLE_STATUS = [429, 500, 529];
+const RETRY_DELAY_MS = 2_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check your connection and try again.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const VEHICLE_PART_LABELS: Record<VehiclePart, string> = {
   underbody: 'vehicle underbody (chassis, floor pans, subframe, exhaust, suspension)',
@@ -130,7 +149,8 @@ function parseSeverity(val: unknown): Severity {
   return 'none';
 }
 
-function parseResponse(
+/** Exported for unit tests — pure model-output parsing, no network. */
+export function parseResponse(
   raw: string,
   vehiclePart: VehiclePart,
   imageUri: string
@@ -188,39 +208,45 @@ export async function analyzeVehicleImage(
 ): Promise<InspectionResult> {
   const { apiKey, vehiclePart = 'unknown' } = options;
 
+  const requestInit: RequestInit = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: 2048,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: 'image/jpeg',
+                data: base64Image,
+              },
+            },
+            {
+              type: 'text',
+              text: buildPrompt(vehiclePart),
+            },
+          ],
+        },
+      ],
+    }),
+  };
+
   let response: Response;
   try {
-    response = await fetch(CLAUDE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 1024,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: 'image/jpeg',
-                  data: base64Image,
-                },
-              },
-              {
-                type: 'text',
-                text: buildPrompt(vehiclePart),
-              },
-            ],
-          },
-        ],
-      }),
-    });
+    response = await fetchWithTimeout(CLAUDE_API_URL, requestInit);
+    if (RETRYABLE_STATUS.includes(response.status)) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      response = await fetchWithTimeout(CLAUDE_API_URL, requestInit);
+    }
   } catch (err) {
     const error: AnalyzeError = {
       code: 'API_ERROR',

@@ -286,8 +286,9 @@ npm test                  # Run SDK unit tests
 
 ## Testing
 
-Pure SDK functions have unit tests in `src/sdk/__tests__/` (`decodeVin`,
-`costEstimate`, `sellingPrice`, `tradeInEstimate`, `preownedGuide`, `reportHtml`). They run on
+Pure SDK functions have unit tests in `src/sdk/__tests__/` (`analyze` (response
+parsing only), `decodeVin`, `costEstimate`, `sellingPrice`, `tradeInEstimate`,
+`preownedGuide`, `reportHtml`). They run on
 Node's built-in test runner (`node:test`) with native TypeScript type-stripping
 — no Jest/Babel setup. Because every SDK file's only import is `import type`
 (erased at runtime), tests import the modules directly with explicit `.ts`

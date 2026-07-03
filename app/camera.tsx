@@ -11,11 +11,11 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import Constants from 'expo-constants';
 import { useInspection } from '../src/context/InspectionContext';
 import { analyzeVehicleImage } from '../src/sdk/analyze';
 import { analyzeVehicleImageLocally } from '../src/sdk/analyzeLocal';
 import type { VehiclePart } from '../src/sdk/types';
+import { getAnthropicApiKey } from '../src/utils/apiKey';
 import { preprocessImage } from '../src/utils/preprocessImage';
 
 const PART_GUIDES: Record<string, { title: string; hint: string; target: string }> = {
@@ -87,8 +87,7 @@ export default function CameraScreen() {
           vehiclePart: vehiclePart as VehiclePart,
         });
       } else {
-        const apiKey = Constants.expoConfig?.extra?.anthropicApiKey as string | undefined
-          ?? process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+        const apiKey = getAnthropicApiKey();
 
         if (!apiKey) {
           Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');

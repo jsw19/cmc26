@@ -96,6 +96,23 @@ export interface DiagnoseResult {
 const DEFAULT_DISCLAIMER =
   'AI guidance only — not a substitute for an in-person inspection by a qualified mechanic.';
 
+const REQUEST_TIMEOUT_MS = 60_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check your connection and try again.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function buildPrompt(query: string, options: DiagnoseOptions): string {
   const { category = 'all', vehicle, maxResults = 3 } = options;
   const limit = Math.min(5, Math.max(1, maxResults));
@@ -200,7 +217,7 @@ export async function diagnoseProblem(
 
   if (!apiKey) throw new Error('API key not configured.');
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'x-api-key': apiKey,
@@ -209,7 +226,7 @@ export async function diagnoseProblem(
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: buildPrompt(trimmed, options) }],
     }),
   });

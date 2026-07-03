@@ -1,6 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import Constants from 'expo-constants';
 import * as ImagePicker from 'expo-image-picker';
 import { useRef, useState } from 'react';
 import {
@@ -22,6 +21,7 @@ import { analyzeVehicleImage } from '../src/sdk/analyze';
 import { analyzeCheckItem, PHOTO_HINTS, PHOTO_TARGETS } from '../src/sdk/analyzeCheckItem';
 import type { CheckItemAnalysis } from '../src/sdk/analyzeCheckItem';
 import type { InspectionResult, VehiclePart } from '../src/sdk/types';
+import { getAnthropicApiKey } from '../src/utils/apiKey';
 import { preprocessImage } from '../src/utils/preprocessImage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -248,9 +248,7 @@ function ScanCameraModal({ part, onClose, onResult }: ScanCameraModalProps) {
         `ppi_${part.id}_${Date.now()}.jpg`,
       );
 
-      const apiKey =
-        (Constants.expoConfig?.extra?.anthropicApiKey as string | undefined)
-        ?? process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+      const apiKey = getAnthropicApiKey();
 
       if (!apiKey) {
         Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');

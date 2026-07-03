@@ -1,5 +1,22 @@
 import Constants from 'expo-constants';
 
+const REQUEST_TIMEOUT_MS = 60_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS / 1000}s. Check your connection and try again.`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface CheckItemAnalysis {
   verdict: 'ok' | 'concern' | 'problem';
   summary: string;
@@ -134,7 +151,7 @@ export async function analyzeCheckItem(
 
   const prompt = CHECK_PROMPTS[checkId] ?? DEFAULT_PROMPT;
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'x-api-key': apiKey,
@@ -143,7 +160,7 @@ export async function analyzeCheckItem(
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 512,
+      max_tokens: 1024,
       messages: [
         {
           role: 'user',
