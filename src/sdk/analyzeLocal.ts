@@ -172,6 +172,8 @@ interface CellStats {
   dark:    number;
   coolant: number;
   sumLum:  number; // sum of luma over analysable samples
+  sumSat:  number; // sum of saturation over analysable samples
+  sumVal:  number; // sum of value/brightness over analysable samples
   edge:    number; // count of analysable samples whose local gradient > EDGE_THRESHOLD
 }
 
@@ -185,7 +187,7 @@ interface ScanResult {
 
 function emptyCells(): CellStats[] {
   return Array.from({ length: GRID * GRID }, () => ({
-    analysable: 0, rust: 0, dark: 0, coolant: 0, sumLum: 0, edge: 0,
+    analysable: 0, rust: 0, dark: 0, coolant: 0, sumLum: 0, sumSat: 0, sumVal: 0, edge: 0,
   }));
 }
 
@@ -230,6 +232,8 @@ function scanImage(
       // Luma + local gradient (forward difference to the next sampled pixel).
       const L = luma(r, g, b);
       cell.sumLum += L;
+      cell.sumSat += s;
+      cell.sumVal += vAdj;
       if (x + stride < width && y + stride < height) {
         const ix = (y * width + (x + stride)) * 4;
         const iy = ((y + stride) * width + x) * 4;
@@ -329,6 +333,7 @@ interface CategoryStats {
   globalRatio: number;
   worstRatio:  number;
   worstLabel:  string;
+  worstIndex:  number;
 }
 
 function analyseCategory(
@@ -356,7 +361,118 @@ function analyseCategory(
     globalRatio: totalAnalysable > 0 ? totalMatches / totalAnalysable : 0,
     worstRatio,
     worstLabel:  worstIdx >= 0 ? cellLabel(worstIdx) : 'across the analysed area',
+    worstIndex: worstIdx,
   };
+}
+
+function safeRatio(numerator: number, denominator: number): number {
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+function cellEdgeRatio(cell: CellStats | undefined): number {
+  return cell ? safeRatio(cell.edge, cell.analysable) : 0;
+}
+
+function cellMeanSat(cell: CellStats | undefined): number {
+  return cell ? safeRatio(cell.sumSat, cell.analysable) : 0;
+}
+
+function cellMeanVal(cell: CellStats | undefined): number {
+  return cell ? safeRatio(cell.sumVal, cell.analysable) : 0;
+}
+
+function buildDarkFindingContext(
+  cells: CellStats[],
+  dark: CategoryStats,
+  rust: CategoryStats,
+  vehiclePart: VehiclePart,
+): {
+  shouldFlag: boolean;
+  confidence: number;
+  severity: Severity;
+  type: DamageItem['type'];
+  description: string;
+} {
+  const worstCell = dark.worstIndex >= 0 ? cells[dark.worstIndex] : undefined;
+  const worstEdgeRatio = cellEdgeRatio(worstCell);
+  const worstMeanSat = cellMeanSat(worstCell);
+  const worstMeanVal = cellMeanVal(worstCell);
+  const baseSeverity = ratioToSeverity(dark.globalRatio);
+
+  const hasShadowSignature =
+    dark.worstRatio >= 0.25 &&
+    worstMeanVal < 0.22 &&
+    worstMeanSat < 0.12 &&
+    worstEdgeRatio < 0.08;
+
+  if (baseSeverity === 'none' || hasShadowSignature) {
+    return {
+      shouldFlag: false,
+      confidence: 0,
+      severity: 'none',
+      type: vehiclePart === 'engine_bay' ? 'leak' : 'corrosion',
+      description: '',
+    };
+  }
+
+  if (vehiclePart === 'engine_bay') {
+    const looksLikePooling =
+      dark.worstRatio >= 0.35 && (worstEdgeRatio >= 0.10 || worstMeanSat >= 0.14 || dark.globalRatio >= 0.10);
+
+    return {
+      shouldFlag: looksLikePooling,
+      confidence: looksLikePooling ? Math.min(0.48 + dark.worstRatio * 0.25 + worstEdgeRatio * 0.3, 0.74) : 0,
+      severity: baseSeverity,
+      type: 'leak',
+      description:
+        `Concentrated dark patches (~${(dark.worstRatio * 100).toFixed(1)}% of the ${dark.worstLabel} zone) ` +
+        `show enough texture or residue variation to suggest oil seepage, burnt residue, or fluid pooling on the engine block.`,
+    };
+  }
+
+  const corrosionSupport =
+    rust.globalRatio > 0.03 ||
+    worstEdgeRatio >= 0.12 ||
+    worstMeanSat >= 0.16 ||
+    dark.worstRatio >= 0.40;
+
+  return {
+    shouldFlag: corrosionSupport,
+    confidence: corrosionSupport ? Math.min(0.42 + dark.globalRatio * 0.8 + worstEdgeRatio * 0.35, 0.72) : 0,
+    severity: baseSeverity,
+    type: 'corrosion',
+    description:
+      `Dark, low-saturation areas (~${(dark.globalRatio * 100).toFixed(1)}% of the analysed area) ` +
+      `are concentrated in the ${dark.worstLabel} zone and look more like corrosion buildup, residue, or staining than uniform shadow.`,
+  };
+}
+
+function adjustRustSeverity(
+  vehiclePart: VehiclePart,
+  rust: CategoryStats,
+  dark: CategoryStats,
+  cells: CellStats[],
+): Severity {
+  let severity = ratioToSeverity(rust.globalRatio);
+  if (rust.worstRatio >= 0.40 && severity !== 'none' && severity !== 'severe') {
+    severity = bumpSeverity(severity);
+  }
+
+  if (vehiclePart !== 'underbody' && vehiclePart !== 'engine_bay') {
+    return severity;
+  }
+
+  const worstCell = rust.worstIndex >= 0 ? cells[rust.worstIndex] : undefined;
+  const supportEdgeRatio = cellEdgeRatio(worstCell);
+  const supportDarkRatio = dark.worstRatio;
+  const supportMeanSat = cellMeanSat(worstCell);
+  const weakStructuralEvidence =
+    severity === 'severe' &&
+    supportDarkRatio < 0.18 &&
+    supportEdgeRatio < 0.12 &&
+    supportMeanSat > 0.32;
+
+  return weakStructuralEvidence ? 'moderate' : severity;
 }
 
 /**
@@ -527,48 +643,36 @@ export async function analyzeVehicleImageLocally(
 
   const damages: DamageItem[] = [];
 
+  const dark = analyseCategory(cells, totalAnalysable, (c) => c.dark);
+
   // --- Rust ---------------------------------------------------------------
   const rust = analyseCategory(cells, totalAnalysable, (c) => c.rust);
-  let rustSeverity = ratioToSeverity(rust.globalRatio);
-  // Cluster bonus: concentrated damage in one zone is worse than scattered noise.
-  if (rust.worstRatio >= 0.40 && rustSeverity !== 'none' && rustSeverity !== 'severe') {
-    rustSeverity = bumpSeverity(rustSeverity);
-  }
+  const rustSeverity = adjustRustSeverity(vehiclePart, rust, dark, cells);
   if (rustSeverity !== 'none') {
+    const rustWorstCell = rust.worstIndex >= 0 ? cells[rust.worstIndex] : undefined;
+    const rustSupportEdge = cellEdgeRatio(rustWorstCell);
     damages.push({
       type: 'rust',
       location: rust.worstLabel,
       severity: rustSeverity,
-      confidence: Math.min(0.65 + rust.globalRatio * 1.5 + rust.worstRatio * 0.2, 0.88),
+      confidence: Math.min(0.56 + rust.globalRatio * 1.35 + rust.worstRatio * 0.18 + rustSupportEdge * 0.12, 0.88),
       description:
         `Rust-coloured pixels account for ~${(rust.globalRatio * 100).toFixed(1)}% of the image ` +
-        `(peak ${(rust.worstRatio * 100).toFixed(1)}% in the ${rust.worstLabel} zone). ` +
+        `(peak ${(rust.worstRatio * 100).toFixed(1)}% in the ${rust.worstLabel} zone, ` +
+        `${(rustSupportEdge * 100).toFixed(0)}% edge density). ` +
         `This indicates possible ${rustSeverity} surface rust or corrosion.`,
     });
   }
 
   // --- Dark patches (corrosion on underbody, oil pooling on engine bay) ----
-  const dark = analyseCategory(cells, totalAnalysable, (c) => c.dark);
-  const darkSeverity = ratioToSeverity(dark.globalRatio);
-  // Underbody: pair with rust to avoid flagging deep shadow as damage.
-  // Engine bay: a single concentrated dark zone (>=35%) reads as fluid pooling.
-  const flagDark =
-    darkSeverity !== 'none' &&
-    (vehiclePart === 'engine_bay'
-      ? dark.worstRatio >= 0.35
-      : rust.globalRatio > 0.03);
-  if (flagDark) {
+  const darkFinding = buildDarkFindingContext(cells, dark, rust, vehiclePart);
+  if (darkFinding.shouldFlag) {
     damages.push({
-      type: vehiclePart === 'engine_bay' ? 'leak' : 'corrosion',
+      type: darkFinding.type,
       location: dark.worstLabel,
-      severity: darkSeverity,
-      confidence: 0.55,
-      description:
-        vehiclePart === 'engine_bay'
-          ? `Concentrated dark patches (~${(dark.worstRatio * 100).toFixed(1)}% of the ${dark.worstLabel} zone) ` +
-            `may indicate an oil leak, burnt residue, or fluid pooling on the engine block.`
-          : `Dark, low-saturation areas (~${(dark.globalRatio * 100).toFixed(1)}%) ` +
-            `may indicate heavy corrosion, oil contamination, or burnt metal.`,
+      severity: darkFinding.severity,
+      confidence: darkFinding.confidence,
+      description: darkFinding.description,
     });
   }
 
