@@ -1,4 +1,6 @@
 export type Severity = 'none' | 'minor' | 'moderate' | 'severe';
+export type AnalysisMode = 'local' | 'ai';
+export type ImageQualityLevel = 'good' | 'usable_with_caveats' | 'retake_required';
 
 export type VehiclePart =
   | 'underbody'
@@ -21,6 +23,12 @@ export type DamageType =
   | 'leak'
   | 'wear'
   | 'other';
+
+export interface ImageQuality {
+  level: ImageQualityLevel;
+  caveats: string[];
+  blocker?: string;
+}
 
 export interface DamageItem {
   type: DamageType;
@@ -86,6 +94,9 @@ export interface InspectionResult {
   timestamp: number;
   vehiclePart: VehiclePart;
   imageUri: string;
+  analysisMode: AnalysisMode;
+  requiresRetake: boolean;
+  imageQuality: ImageQuality;
   damages: DamageItem[];
   overallSeverity: Severity;
   summary: string;

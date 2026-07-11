@@ -387,10 +387,25 @@ function InlineScanResult({
         <>
           <Text style={styles.scanResultSummary}>{result.summary}</Text>
 
+          {result.requiresRetake && (
+            <View style={styles.scanRetakeBox}>
+              <Ionicons name="camera-outline" size={14} color="#f59e0b" />
+              <Text style={styles.scanRetakeText}>
+                Retake recommended: {result.imageQuality.blocker ?? 'the image did not clearly show enough detail.'}
+              </Text>
+            </View>
+          )}
+
           {result.damages.length === 0 ? (
             <View style={styles.scanNoDamage}>
-              <Ionicons name="checkmark-circle" size={15} color="#4ade80" />
-              <Text style={styles.scanNoDamageText}>No damage detected</Text>
+              <Ionicons
+                name={result.requiresRetake ? 'camera-outline' : 'checkmark-circle'}
+                size={15}
+                color={result.requiresRetake ? '#f59e0b' : '#4ade80'}
+              />
+              <Text style={[styles.scanNoDamageText, result.requiresRetake && styles.scanRetakeLabel]}>
+                {result.requiresRetake ? 'Retake needed' : 'No damage detected'}
+              </Text>
             </View>
           ) : (
             result.damages.map((d, i) => (
@@ -1621,6 +1636,23 @@ const styles = StyleSheet.create({
     color: '#aaa',
     lineHeight: 17,
   },
+  scanRetakeBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+    backgroundColor: '#2a1c07',
+    borderWidth: 1,
+    borderColor: '#5c3a09',
+    borderRadius: 8,
+    padding: 9,
+    marginTop: 8,
+  },
+  scanRetakeText: {
+    flex: 1,
+    fontSize: 11,
+    color: '#f6c86d',
+    lineHeight: 16,
+  },
   scanNoDamage: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1631,6 +1663,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#4ade80',
     fontWeight: '600',
+  },
+  scanRetakeLabel: {
+    color: '#f59e0b',
   },
   scanDamageRow: {
     flexDirection: 'row',

@@ -73,10 +73,13 @@ const SCAN_PARTS: { id: VehiclePart; label: string; icon: string; hint: string; 
 // Derive worst-case severity across all scan results
 function deriveSeverity(results: Partial<Record<VehiclePart, InspectionResult>>): Severity | null {
   const vals = Object.values(results).filter(Boolean) as InspectionResult[];
+  const usable = vals.filter((r) => !r.requiresRetake);
+  if (usable.length === 0 && vals.length > 0) return null;
+  const source = usable.length > 0 ? usable : vals;
   if (vals.length === 0) return null;
-  if (vals.some((r) => r.overallSeverity === 'severe'))   return 'severe';
-  if (vals.some((r) => r.overallSeverity === 'moderate')) return 'moderate';
-  if (vals.some((r) => r.overallSeverity === 'minor'))    return 'minor';
+  if (source.some((r) => r.overallSeverity === 'severe'))   return 'severe';
+  if (source.some((r) => r.overallSeverity === 'moderate')) return 'moderate';
+  if (source.some((r) => r.overallSeverity === 'minor'))    return 'minor';
   return 'none';
 }
 
@@ -296,7 +299,9 @@ function ScanConditionSection({
                 <Ionicons name={part.icon as any} size={13} color="#555" />
                 <Text style={styles.scanSummaryPart}>{part.label}</Text>
                 <Text style={styles.scanSummarySev} numberOfLines={1}>
-                  {r.damages.length === 0
+                  {r.requiresRetake
+                    ? 'Retake needed'
+                    : r.damages.length === 0
                     ? 'No issues'
                     : r.damages.map((d) => d.type.replace(/_/g, ' ')).join(', ')}
                 </Text>
@@ -481,11 +486,20 @@ export default function SellScreen() {
   };
 
   const derivedCondition = deriveSeverity(scanResults);
+  const retakeCount = Object.values(scanResults).filter((r) => r?.requiresRetake).length;
   // AI-derived condition takes priority; manual picker is the fallback
   const effectiveCondition = derivedCondition ?? manualCondition;
   const usingAI = derivedCondition !== null;
 
   const handleGetPrice = async () => {
+    if (retakeCount > 0) {
+      Alert.alert(
+        'Retake scan first',
+        'One or more AI scans did not clearly show the vehicle area. Retake those photos before generating pricing so the condition estimate is trustworthy.',
+      );
+      return;
+    }
+
     const yearNum    = parseInt(year, 10);
     const mileageNum = parseInt(mileage, 10);
     const currentYear = new Date().getFullYear();
@@ -526,6 +540,15 @@ export default function SellScreen() {
               listing prices for FB Marketplace and Craigslist.
             </Text>
           </View>
+
+          {retakeCount > 0 && (
+            <View style={styles.retakeNotice}>
+              <Ionicons name="camera-outline" size={15} color="#f59e0b" />
+              <Text style={styles.retakeNoticeText}>
+                {retakeCount} scan{retakeCount > 1 ? 's' : ''} need a retake before AI condition can safely drive pricing.
+              </Text>
+            </View>
+          )}
 
           <View style={styles.inputCard}>
             {/* VIN decode — auto-fills year, make, model, and type */}
@@ -744,6 +767,23 @@ const styles = StyleSheet.create({
     borderColor: '#2a2a2a',
     marginBottom: 20,
     gap: 4,
+  },
+  retakeNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#2a1c07',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#5c3a09',
+    padding: 12,
+    marginBottom: 16,
+  },
+  retakeNoticeText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#f6c86d',
+    lineHeight: 17,
   },
   row: { flexDirection: 'row', gap: 10 },
   inputLabel: {

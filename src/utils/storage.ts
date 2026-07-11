@@ -4,6 +4,15 @@ import type { InspectionResult } from '../sdk/types';
 
 const HISTORY_KEY = 'checkmycar_history';
 
+function normalizeInspectionResult(result: InspectionResult): InspectionResult {
+  return {
+    ...result,
+    analysisMode: result.analysisMode ?? 'ai',
+    requiresRetake: result.requiresRetake ?? false,
+    imageQuality: result.imageQuality ?? { level: 'good', caveats: [] },
+  };
+}
+
 async function deleteImageFile(uri: string | undefined): Promise<void> {
   if (!uri) return;
   try {
@@ -18,7 +27,9 @@ export async function loadHistory(): Promise<InspectionResult[]> {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) ? (parsed as InspectionResult[]) : [];
+    return Array.isArray(parsed)
+      ? (parsed as InspectionResult[]).map(normalizeInspectionResult)
+      : [];
   } catch {
     // Corrupted history would otherwise make every subsequent save fail too.
     return [];

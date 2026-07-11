@@ -99,6 +99,11 @@ export function buildInspectionReportHtml(
   const imageBlock = options.imageDataUri
     ? `<img class="photo" src="${options.imageDataUri}" alt="Vehicle photo" />`
     : '';
+  const qualityBlock = result.requiresRetake
+    ? `<p class="retake">Retake recommended: ${escapeHtml(result.imageQuality.blocker ?? 'The image quality was not strong enough for a confident inspection.')}</p>`
+    : result.imageQuality.caveats.length > 0
+    ? `<p class="caveat">${escapeHtml(result.imageQuality.caveats.join(' '))}</p>`
+    : '';
 
   // Damages
   const damageBlock = result.damages.length
@@ -198,6 +203,8 @@ export function buildInspectionReportHtml(
   .range { margin: 3px 0; }
   .muted { color: #666; font-size: 12px; }
   .ok { color: #16a34a; font-weight: 600; }
+  .retake { color: #b45309; font-weight: 600; margin: 10px 0 0; }
+  .caveat { color: #666; margin: 10px 0 0; }
   ul { margin: 6px 0; padding-left: 18px; }
   li { margin: 3px 0; }
   .disclaimer { color: #888; font-size: 10px; margin-top: 8px; font-style: italic; }
@@ -219,6 +226,7 @@ export function buildInspectionReportHtml(
   ${imageBlock}
 
   <div class="summary">${escapeHtml(result.summary)}</div>
+  ${qualityBlock}
 
   ${section(`Detected Issues (${result.damages.length})`, damageBlock)}
   ${costBlock}

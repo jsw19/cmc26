@@ -260,6 +260,21 @@ interface ImageQuality {
   blocker?: string;
 }
 
+function toResultImageQuality(quality: ImageQuality): import('./types').ImageQuality {
+  if (!quality.usable) {
+    return {
+      level: 'retake_required',
+      caveats: quality.caveats,
+      blocker: quality.blocker,
+    };
+  }
+
+  return {
+    level: quality.caveats.length > 0 ? 'usable_with_caveats' : 'good',
+    caveats: quality.caveats,
+  };
+}
+
 function assessQuality(scan: ScanResult, meanV: number): ImageQuality {
   const caveats: string[] = [];
   const glareRatio = scan.totalSampled > 0 ? scan.glareSamples / scan.totalSampled : 0;
@@ -629,6 +644,9 @@ export async function analyzeVehicleImageLocally(
       timestamp: Date.now(),
       vehiclePart,
       imageUri,
+      analysisMode: 'local',
+      requiresRetake: true,
+      imageQuality: toResultImageQuality(quality),
       damages: [],
       overallSeverity: 'none',
       summary:
@@ -709,6 +727,9 @@ export async function analyzeVehicleImageLocally(
     timestamp: Date.now(),
     vehiclePart,
     imageUri,
+    analysisMode: 'local',
+    requiresRetake: false,
+    imageQuality: toResultImageQuality(quality),
     damages,
     overallSeverity,
     summary: buildSummary(vehiclePart, damages, overallSeverity, quality.caveats),

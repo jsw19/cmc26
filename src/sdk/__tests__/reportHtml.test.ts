@@ -9,6 +9,9 @@ function baseResult(overrides: Partial<InspectionResult> = {}): InspectionResult
     timestamp: Date.UTC(2026, 0, 15, 12, 0),
     vehiclePart: 'underbody',
     imageUri: 'file:///x.jpg',
+    analysisMode: 'ai',
+    requiresRetake: false,
+    imageQuality: { level: 'good', caveats: [] },
     damages: [
       { type: 'rust', location: 'frame rail', severity: 'moderate', confidence: 0.82, description: 'surface rust' },
     ],
@@ -76,4 +79,21 @@ test('renders a no-damage message when there are no damages', () => {
   );
   assert.match(html, /No damage detected/);
   assert.match(html, /Detected Issues \(0\)/);
+});
+
+test('renders a retake message when image quality blocked a confident inspection', () => {
+  const html = buildInspectionReportHtml(
+    baseResult({
+      damages: [],
+      overallSeverity: 'none',
+      requiresRetake: true,
+      imageQuality: {
+        level: 'retake_required',
+        caveats: [],
+        blocker: 'The photo is too dark to inspect reliably.',
+      },
+    }),
+  );
+  assert.match(html, /Retake recommended/);
+  assert.match(html, /too dark/i);
 });

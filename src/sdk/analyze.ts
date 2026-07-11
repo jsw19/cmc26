@@ -2,6 +2,7 @@ import type {
   AnalyzeError,
   AnalyzeOptions,
   DamageItem,
+  ImageQuality,
   InspectionResult,
   Severity,
   VehiclePart,
@@ -149,6 +150,43 @@ function parseSeverity(val: unknown): Severity {
   return 'none';
 }
 
+function inferImageQuality(
+  recommendations: string[],
+  damages: DamageItem[],
+  summary: string,
+): { imageQuality: ImageQuality; requiresRetake: boolean } {
+  const text = `${summary} ${recommendations.join(' ')}`.toLowerCase();
+  const needsBetterPhoto =
+    text.includes('better photo') ||
+    text.includes('better image') ||
+    text.includes('photo is too') ||
+    text.includes('image is too') ||
+    text.includes('blurry') ||
+    text.includes('does not clearly show') ||
+    text.includes('too far away') ||
+    text.includes('blocked by the wheel') ||
+    text.includes('retake');
+
+  if (needsBetterPhoto) {
+    return {
+      requiresRetake: true,
+      imageQuality: {
+        level: 'retake_required',
+        caveats: recommendations.filter((rec) => /photo|image|blurry|clear|retake|angle/i.test(rec)),
+        blocker: 'The captured image does not clearly show enough detail for a confident inspection.',
+      },
+    };
+  }
+
+  return {
+    requiresRetake: false,
+    imageQuality: {
+      level: damages.length === 0 ? 'good' : 'usable_with_caveats',
+      caveats: [],
+    },
+  };
+}
+
 /** Exported for unit tests — pure model-output parsing, no network. */
 export function parseResponse(
   raw: string,
@@ -173,6 +211,7 @@ export function parseResponse(
     ? (parsed.recommendations as unknown[]).map(String)
     : [];
   const overallSeverity = parseSeverity(parsed.overallSeverity);
+  const summary = String(parsed.summary ?? '');
 
   if (
     (overallSeverity === 'moderate' || overallSeverity === 'severe') &&
@@ -181,14 +220,19 @@ export function parseResponse(
     recommendations.push('This app cannot replace an in-person repair shop inspection for moderate or severe findings.');
   }
 
+  const { imageQuality, requiresRetake } = inferImageQuality(recommendations, damages, summary);
+
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: Date.now(),
     vehiclePart,
     imageUri,
+    analysisMode: 'ai',
+    requiresRetake,
+    imageQuality,
     damages,
     overallSeverity,
-    summary: String(parsed.summary ?? ''),
+    summary,
     recommendations,
   };
 }

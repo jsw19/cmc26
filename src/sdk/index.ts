@@ -20,11 +20,14 @@ export { estimateSellingPrice } from './sellingPrice';
 export { estimateTradeInValue } from './tradeInEstimate';
 export type {
   AnalyzeError,
+  AnalysisMode,
   AnalyzeLocalOptions,
   AnalyzeOptions,
   CostEstimate,
   DamageItem,
   DamageType,
+  ImageQuality,
+  ImageQualityLevel,
   InspectionResult,
   LocationInfo,
   MarketTier,

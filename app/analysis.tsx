@@ -51,6 +51,10 @@ const PART_LABELS: Record<string, string> = {
   unknown: 'Vehicle',
 };
 
+function shouldBlockValuation(result: { requiresRetake: boolean }): boolean {
+  return result.requiresRetake;
+}
+
 function CostEstimateCard({ estimate }: { estimate: CostEstimate }) {
   const { currencySymbol, items, totalMin, totalMax, location, disclaimer } = estimate;
   const fmt = (n: number) => `${currencySymbol}${n.toLocaleString()}`;
@@ -578,6 +582,14 @@ export default function AnalysisScreen() {
             <SeverityBadge severity={inspection.overallSeverity} size="lg" />
           </View>
           <Text style={styles.summary}>{inspection.summary}</Text>
+          {inspection.requiresRetake && (
+            <View style={styles.retakeBanner}>
+              <Ionicons name="camera-outline" size={15} color="#f59e0b" />
+              <Text style={styles.retakeBannerText}>
+                Retake recommended: {inspection.imageQuality.blocker ?? 'the image did not show enough detail for a confident inspection.'}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Damage items */}
@@ -589,6 +601,14 @@ export default function AnalysisScreen() {
             {inspection.damages.map((d, i) => (
               <DamageCard key={i} damage={d} />
             ))}
+          </View>
+        ) : inspection.requiresRetake ? (
+          <View style={styles.noDamage}>
+            <Ionicons name="camera-outline" size={40} color="#f59e0b" />
+            <Text style={[styles.noDamageText, { color: '#f59e0b' }]}>Retake photo needed</Text>
+            <Text style={styles.retakeInlineText}>
+              Capture the same area again with steadier framing, better light, and a closer view of the target part.
+            </Text>
           </View>
         ) : (
           <View style={styles.noDamage}>
@@ -641,7 +661,11 @@ export default function AnalysisScreen() {
         {/* Trade-In Estimate */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Trade-In Value</Text>
-          {inspection.tradeInEstimate ? (
+          {shouldBlockValuation(inspection) ? (
+            <Text style={styles.estimateHint}>
+              Retake this inspection before using it for trade-in pricing. A low-quality scan can understate condition issues.
+            </Text>
+          ) : inspection.tradeInEstimate ? (
             <TradeInEstimateCard estimate={inspection.tradeInEstimate} onEdit={() => openVehicleModal('tradeIn')} />
           ) : (
             <TouchableOpacity
@@ -664,7 +688,11 @@ export default function AnalysisScreen() {
         {/* Sell on Marketplace */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Sell on Marketplace</Text>
-          {inspection.sellingPriceEstimate ? (
+          {shouldBlockValuation(inspection) ? (
+            <Text style={styles.estimateHint}>
+              Retake this inspection before generating selling guidance so the pricing reflects a trustworthy condition scan.
+            </Text>
+          ) : inspection.sellingPriceEstimate ? (
             <SellingPriceCard
               estimate={inspection.sellingPriceEstimate}
               onEdit={() => openVehicleModal('sell')}
@@ -862,6 +890,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#4caf50',
+  },
+  retakeInlineText: {
+    fontSize: 13,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 18,
+    maxWidth: 280,
+  },
+  retakeBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: '#2a1c07',
+    borderWidth: 1,
+    borderColor: '#5c3a09',
+    borderRadius: 10,
+    padding: 10,
+  },
+  retakeBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#f6c86d',
+    lineHeight: 17,
   },
   recCard: {
     backgroundColor: '#1a1a1a',

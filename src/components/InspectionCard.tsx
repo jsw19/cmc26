@@ -47,11 +47,18 @@ export function InspectionCard({ inspection }: Props) {
         <View style={styles.footer}>
           <SeverityBadge severity={inspection.overallSeverity} size="sm" />
           <Text style={styles.damageCount}>
-            {inspection.damages.length === 0
+            {inspection.requiresRetake
+              ? 'Retake needed'
+              : inspection.damages.length === 0
               ? 'No issues'
               : `${inspection.damages.length} issue${inspection.damages.length > 1 ? 's' : ''}`}
           </Text>
         </View>
+        {inspection.requiresRetake && (
+          <Text style={styles.retakeHint} numberOfLines={1}>
+            {inspection.imageQuality.blocker ?? 'Image quality was too limited for a confident inspection.'}
+          </Text>
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -99,5 +106,10 @@ const styles = StyleSheet.create({
   damageCount: {
     color: '#888',
     fontSize: 12,
+  },
+  retakeHint: {
+    color: '#f59e0b',
+    fontSize: 11,
+    lineHeight: 16,
   },
 });
