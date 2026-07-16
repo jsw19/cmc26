@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View, FlatList, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { InspectionCard } from '../components/InspectionCard';
+import { HistoryBannerAd } from '../components/HistoryBannerAd';
 import { useInspection } from '../context/InspectionContext';
 
 export default function HistoryScreen() {
@@ -56,6 +57,7 @@ export default function HistoryScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
+      <HistoryBannerAd />
     </SafeAreaView>
   );
 }
