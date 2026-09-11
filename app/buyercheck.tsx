@@ -17,11 +17,10 @@ import { SeverityBadge, SEVERITY_TINTS } from '../src/components/SeverityBadge';
 import { INSPECTION_SYSTEMS } from '../src/data/inspectionChecklist';
 import { ALL_MAKES, getIssuesForModel, getModelsForMake } from '../src/data/modelIssues';
 import type { IssueSeverity } from '../src/data/modelIssues';
-import { analyzeVehicleImage } from '../src/sdk/analyze';
-import { analyzeCheckItem, PHOTO_HINTS, PHOTO_TARGETS } from '../src/sdk/analyzeCheckItem';
+import { analyzeVehicleImageLocally } from '../src/sdk/analyzeLocal';
+import { analyzeCheckItemLocally } from '../src/sdk/analyzeCheckItemLocal';
 import type { CheckItemAnalysis } from '../src/sdk/analyzeCheckItem';
 import type { InspectionResult, VehiclePart } from '../src/sdk/types';
-import { getAnthropicApiKey } from '../src/utils/apiKey';
 import { preprocessImage } from '../src/utils/preprocessImage';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -69,8 +68,8 @@ function CameraModal({ checkId, checkTitle, onClose, onResult }: CameraModalProp
   const [permission, requestPermission] = useCameraPermissions();
   const [analyzing, setAnalyzing] = useState(false);
   const cameraRef = useRef<CameraView>(null);
-  const hint = PHOTO_HINTS[checkId] ?? 'Point the camera at the relevant vehicle area.';
-  const target = PHOTO_TARGETS[checkId] ?? 'area of interest';
+  const hint = 'Center the relevant vehicle area in the frame with clear, even lighting.';
+  const target = 'area of interest';
 
   const analyzeImageUri = async (imageUri: string) => {
     setAnalyzing(true);
@@ -80,7 +79,7 @@ function CameraModal({ checkId, checkTitle, onClose, onResult }: CameraModalProp
         `check_${checkId}_${Date.now()}.jpg`,
       );
 
-      const result = await analyzeCheckItem(base64, savedUri, checkId);
+      const result = await analyzeCheckItemLocally(base64, savedUri, checkId);
       onResult(result);
       onClose();
     } catch (err) {
@@ -161,7 +160,7 @@ function CameraModal({ checkId, checkTitle, onClose, onResult }: CameraModalProp
             {analyzing ? (
               <View style={styles.cameraAnalyzing}>
                 <ActivityIndicator size="large" color="#3b82f6" />
-                <Text style={styles.cameraAnalyzingText}>Analyzing with AI...</Text>
+                <Text style={styles.cameraAnalyzingText}>Analysing on-device...</Text>
               </View>
             ) : (
               <View style={styles.cameraControls}>
@@ -196,7 +195,7 @@ function PhotoResultCard({ result }: { result: CheckItemAnalysis }) {
       <View style={styles.photoResultHeader}>
         <Ionicons name={cfg.icon} size={15} color={cfg.color} />
         <Text style={[styles.photoResultVerdict, { color: cfg.color }]}>{cfg.label}</Text>
-        <Text style={styles.photoResultAI}>AI Photo Check</Text>
+        <Text style={styles.photoResultAI}>On-Device Photo Check</Text>
       </View>
       <Text style={styles.photoResultSummary}>{result.summary}</Text>
       {result.details.length > 0 && (
@@ -248,15 +247,7 @@ function ScanCameraModal({ part, onClose, onResult }: ScanCameraModalProps) {
         `ppi_${part.id}_${Date.now()}.jpg`,
       );
 
-      const apiKey = getAnthropicApiKey();
-
-      if (!apiKey) {
-        Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');
-        setAnalyzing(false);
-        return;
-      }
-
-      const result = await analyzeVehicleImage(base64, savedUri, { apiKey, vehiclePart: part.id });
+      const result = await analyzeVehicleImageLocally(base64, savedUri, { vehiclePart: part.id });
       onResult(result);
       onClose();
     } catch (err) {
@@ -336,7 +327,7 @@ function ScanCameraModal({ part, onClose, onResult }: ScanCameraModalProps) {
             {analyzing ? (
               <View style={styles.cameraAnalyzing}>
                 <ActivityIndicator size="large" color="#3b82f6" />
-                <Text style={styles.cameraAnalyzingText}>Analyzing with AI...</Text>
+                <Text style={styles.cameraAnalyzingText}>Analysing on-device...</Text>
               </View>
             ) : (
               <View style={styles.cameraControls}>
@@ -503,7 +494,7 @@ function ScanTab() {
         {scannedCount === 0 && (
           <View style={styles.emptyHint}>
             <Ionicons name="camera-outline" size={40} color="#222" />
-            <Text style={styles.emptyHintText}>Tap any area above to start the AI scan</Text>
+            <Text style={styles.emptyHintText}>Tap any area above to start an on-device scan</Text>
           </View>
         )}
       </ScrollView>
@@ -796,7 +787,7 @@ const TIPS_SECTIONS = [
       '2. Check the market value so you know your ceiling — use this app\'s Sell estimator on the same year/make/model for a private-party reference.',
       '3. Message the seller: ask why selling, request extra photos of the underbody and engine bay if not shown.',
       '4. Schedule the meeting — daytime only, bank or DMV parking lot, bring a friend.',
-      '5. Do the AI Scan (this app\'s Scan tab) on all 6 areas before handing over any money.',
+      '5. Run the on-device scan on all 6 areas before handing over any money.',
       '6. Test drive at least 15 minutes: cold start, city stop-and-go, highway, hard braking, sharp turns.',
       '7. OBD2 scan for stored and pending fault codes — a $15 Bluetooth ELM327 from Amazon does this.',
       '8. Negotiate based on findings: every flagged issue is a legitimate ask for a lower price.',
@@ -964,7 +955,7 @@ function BuyerTipsTab() {
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'scan',      label: 'AI Scan'      },
+  { id: 'scan',      label: 'Local Scan'   },
   { id: 'checklist', label: 'Checklist'    },
   { id: 'models',    label: 'Model Issues' },
   { id: 'tips',      label: 'Buyer Tips'   },

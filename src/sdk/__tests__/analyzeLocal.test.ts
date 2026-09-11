@@ -68,3 +68,38 @@ test('flags textured rust-heavy underbody region as damage', async () => {
   assert.notEqual(result.overallSeverity, 'none');
   assert.ok(result.damages.some((damage) => damage.type === 'rust'));
 });
+
+test('locates a rust patch in normalized coordinates on a landscape image', async () => {
+  const base64 = encodeSolidImage(360, 240, rgbToPixel(90, 90, 90), (data, width) => {
+    for (let y = 160; y < 240; y++) for (let x = 240; x < 360; x++) {
+      const i = (y * width + x) * 4;
+      data[i] = 140; data[i + 1] = 75; data[i + 2] = 40;
+    }
+  });
+  const result = await analyzeVehicleImageLocally(base64, 'file:///patch.jpg', { vehiclePart: 'underbody' });
+  assert.deepEqual(result.imageSize, { width: 360, height: 240 });
+  const rust = result.damages.find(d => d.type === 'rust');
+  assert.ok(rust?.region);
+  assert.ok(rust.region.x >= 2 / 3 && rust.region.y >= 2 / 3);
+  assert.equal(rust.region.width, 1 / 6);
+  assert.equal(rust.region.height, 1 / 6);
+  assert.ok(rust.region.x + rust.region.width <= 1);
+  assert.ok(rust.region.y + rust.region.height <= 1);
+});
+
+test('unreadable black and glare frames request a retake without finding boxes', async () => {
+  for (const value of [0, 255]) {
+    const result = await analyzeVehicleImageLocally(encodeSolidImage(240, 360, rgbToPixel(value, value, value)), 'file:///unreadable.jpg');
+    assert.equal(result.requiresRetake, true);
+    assert.deepEqual(result.damages, []);
+    assert.deepEqual(result.imageSize, { width: 240, height: 360 });
+  }
+});
+
+test('neutral clean metal and blue paint do not produce rust findings', async () => {
+  for (const fill of [rgbToPixel(110, 110, 110), rgbToPixel(35, 95, 170)]) {
+    const result = await analyzeVehicleImageLocally(encodeSolidImage(240, 240, fill), 'file:///clean.jpg', { vehiclePart: 'front' });
+    assert.equal(result.requiresRetake, false);
+    assert.equal(result.damages.length, 0);
+  }
+});

@@ -1,8 +1,7 @@
-export { analyzeVehicleImage } from './analyze';
 export { analyzeVehicleImageLocally } from './analyzeLocal';
 export { decodeVin, isValidVin, normalizeVin } from './decodeVin';
 export type { DecodeVinOptions, VinDecodeResult } from './decodeVin';
-export { diagnoseProblem } from './diagnoseProblem';
+export { diagnoseProblemLocally } from './diagnoseProblemLocal';
 export type {
   AIDiagnosis,
   DiagnoseOptions,
@@ -14,6 +13,7 @@ export type {
 } from './diagnoseProblem';
 export { estimateRepairCosts } from './costEstimate';
 export { buildInspectionReportHtml, escapeHtml } from './reportHtml';
+export { buildSessionReportHtml, sessionProgress } from './sessionReport';
 export type { ReportOptions } from './reportHtml';
 export { findPreownedCars } from './preownedGuide';
 export { estimateSellingPrice } from './sellingPrice';
@@ -22,13 +22,14 @@ export type {
   AnalyzeError,
   AnalysisMode,
   AnalyzeLocalOptions,
-  AnalyzeOptions,
   CostEstimate,
   DamageItem,
   DamageType,
   ImageQuality,
   ImageQualityLevel,
   InspectionResult,
+  InspectionSession,
+  VehicleProfile,
   LocationInfo,
   MarketTier,
   PlatformListing,

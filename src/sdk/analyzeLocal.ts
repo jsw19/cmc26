@@ -344,6 +344,11 @@ function cellLabel(cellIdx: number): string {
   return QUADRANT_LABELS[qRow * 3 + qCol];
 }
 
+function cellRegion(index: number): DamageItem['region'] {
+  if (index < 0) return undefined;
+  return { x: (index % GRID) / GRID, y: Math.floor(index / GRID) / GRID, width: 1 / GRID, height: 1 / GRID };
+}
+
 interface CategoryStats {
   globalRatio: number;
   worstRatio:  number;
@@ -519,6 +524,7 @@ function detectSurfaceAnomaly(cells: CellStats[]): DamageItem | null {
   return {
     type: 'dent',
     location: cellLabel(worst.idx),
+    region: cellRegion(worst.idx),
     severity,
     confidence: 0.45,
     description:
@@ -644,6 +650,7 @@ export async function analyzeVehicleImageLocally(
       timestamp: Date.now(),
       vehiclePart,
       imageUri,
+      imageSize: { width, height },
       analysisMode: 'local',
       requiresRetake: true,
       imageQuality: toResultImageQuality(quality),
@@ -672,6 +679,7 @@ export async function analyzeVehicleImageLocally(
     damages.push({
       type: 'rust',
       location: rust.worstLabel,
+      region: cellRegion(rust.worstIndex),
       severity: rustSeverity,
       confidence: Math.min(0.56 + rust.globalRatio * 1.35 + rust.worstRatio * 0.18 + rustSupportEdge * 0.12, 0.88),
       description:
@@ -688,6 +696,7 @@ export async function analyzeVehicleImageLocally(
     damages.push({
       type: darkFinding.type,
       location: dark.worstLabel,
+      region: cellRegion(dark.worstIndex),
       severity: darkFinding.severity,
       confidence: darkFinding.confidence,
       description: darkFinding.description,
@@ -705,6 +714,7 @@ export async function analyzeVehicleImageLocally(
       damages.push({
         type: 'leak',
         location: coolant.worstLabel,
+        region: cellRegion(coolant.worstIndex),
         severity: coolantSeverity,
         confidence: 0.60,
         description:
@@ -727,6 +737,7 @@ export async function analyzeVehicleImageLocally(
     timestamp: Date.now(),
     vehiclePart,
     imageUri,
+    imageSize: { width, height },
     analysisMode: 'local',
     requiresRetake: false,
     imageQuality: toResultImageQuality(quality),

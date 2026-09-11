@@ -28,6 +28,7 @@ export default function RootLayout() {
           name="analysis"
           options={{ title: 'Analysis Results' }}
         />
+        <Stack.Screen name="vehicle-inspections" options={{ title: 'Vehicle Inspections' }} />
       </Stack>
     </InspectionProvider>
   );

@@ -15,9 +15,11 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.checkmycar.app",
+      "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "CheckMyCar uses the camera to photograph your vehicle for damage analysis.",
-        "NSPhotoLibraryUsageDescription": "CheckMyCar accesses your photo library to analyze vehicle images."
+        "NSPhotoLibraryUsageDescription": "CheckMyCar accesses your photo library to analyze vehicle images.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -25,10 +27,14 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#0f0f0f"
       },
-      "package": "com.checkmycar.app",
+      "package": "com.ashen728.checkmycar",
+      "versionCode": 1,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE"
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -40,7 +46,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "CheckMyCar uses the camera to photograph your vehicle for damage analysis."
+          "cameraPermission": "CheckMyCar uses the camera to photograph your vehicle for damage analysis.",
+          "recordAudioAndroid": false
         }
       ],
       [
@@ -49,17 +56,16 @@
           "photosPermission": "CheckMyCar accesses your photo library to analyze vehicle images."
         }
       ],
-      "expo-font",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
-        }
-      ]
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e34f1cce-19b8-47d1-b1de-19c508ef1f41"
+      }
     }
   }
 }

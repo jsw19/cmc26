@@ -7,7 +7,6 @@ import { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,6 +19,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SeverityBadge, SEVERITY_TINTS } from '../src/components/SeverityBadge';
+import { InspectionPhoto } from '../src/components/InspectionPhoto';
 import { useInspection } from '../src/context/InspectionContext';
 import { useLocationCostEstimate } from '../src/hooks/useLocationCostEstimate';
 import { useTradeInEstimate } from '../src/hooks/useTradeInEstimate';
@@ -541,8 +541,11 @@ export default function AnalysisScreen() {
         text: 'Delete',
         style: 'destructive',
         onPress: async () => {
-          await removeResult(inspection.id);
-          router.back();
+          try {
+            await removeResult(inspection.id);
+            if (inspection.sessionId) router.replace({ pathname: '/vehicle-inspections', params: { id: inspection.sessionId } });
+            else router.back();
+          } catch { Alert.alert('Delete failed', 'Could not delete this photo. Please try again.'); }
         },
       },
     ]);
@@ -560,7 +563,12 @@ export default function AnalysisScreen() {
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         {/* Photo */}
-        <Image source={{ uri: inspection.imageUri }} style={styles.photo} resizeMode="cover" />
+        <InspectionPhoto key={inspection.id} inspection={inspection} />
+        {inspection.sessionId && (
+          <TouchableOpacity style={styles.shareBtn} onPress={() => router.replace({ pathname: '/vehicle-inspections', params: { id: inspection.sessionId } })}>
+            <Text style={styles.shareBtnText}>Return to vehicle inspection</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Overall result */}
         <View
@@ -734,7 +742,7 @@ export default function AnalysisScreen() {
         <View style={styles.disclaimer}>
           <Ionicons name="information-circle-outline" size={14} color="#555" />
           <Text style={styles.disclaimerText}>
-            This analysis is AI-generated and for informational purposes only. Always consult a
+            This on-device visual analysis is for informational purposes only. Always consult a
             qualified mechanic before making repair decisions.
           </Text>
         </View>

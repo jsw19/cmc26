@@ -36,6 +36,8 @@ export interface DamageItem {
   severity: Severity;
   confidence: number; // 0–1
   description: string;
+  /** Strongest supporting grid cell, in normalized image coordinates; not a defect boundary. */
+  region?: { x: number; y: number; width: number; height: number };
 }
 
 export type VehicleCategory =
@@ -91,9 +93,11 @@ export interface TradeInEstimate {
 
 export interface InspectionResult {
   id: string;
+  sessionId?: string;
   timestamp: number;
   vehiclePart: VehiclePart;
   imageUri: string;
+  imageSize?: { width: number; height: number };
   analysisMode: AnalysisMode;
   requiresRetake: boolean;
   imageQuality: ImageQuality;
@@ -105,6 +109,21 @@ export interface InspectionResult {
   vehicleInfo?: VehicleInfo;
   tradeInEstimate?: TradeInEstimate;
   sellingPriceEstimate?: SellingPriceEstimate;
+}
+
+export interface VehicleProfile {
+  id: string;
+  name: string;
+  make: string;
+  model: string;
+  year?: number;
+}
+
+export interface InspectionSession {
+  id: string;
+  vehicle: VehicleProfile;
+  createdAt: number;
+  status: 'draft' | 'complete';
 }
 
 export interface MarketTier {

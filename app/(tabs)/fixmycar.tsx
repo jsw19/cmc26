@@ -20,7 +20,8 @@ import {
   type FixDifficulty,
   type FixUrgency,
 } from '../../src/data/diagnosisSuggestions';
-import { diagnoseProblem, type AIDiagnosis, type DiagnoseResult } from '../../src/sdk';
+import { diagnoseProblemLocally as diagnoseProblem } from '../../src/sdk/diagnoseProblemLocal';
+import type { AIDiagnosis, DiagnoseResult } from '../../src/sdk/diagnoseProblem';
 
 type IoniconName = ComponentProps<typeof Ionicons>['name'];
 type CategoryFilter = FixCategory | 'all';
@@ -428,7 +429,7 @@ export default function FixMyCarScreen() {
             <Ionicons name="sparkles" size={16} color="#fff" />
           )}
           <Text style={styles.askAiButtonText}>
-            {aiStatus === 'loading' ? 'Diagnosing your symptom…' : 'Ask AI to diagnose this'}
+            {aiStatus === 'loading' ? 'Matching your symptom…' : 'Match from offline guide'}
           </Text>
         </TouchableOpacity>
 
@@ -444,7 +445,7 @@ export default function FixMyCarScreen() {
             <View style={styles.aiSection}>
               <View style={styles.aiSectionHeader}>
                 <Ionicons name="sparkles" size={14} color="#60a5fa" />
-                <Text style={styles.aiSectionTitle}>AI Diagnosis</Text>
+                <Text style={styles.aiSectionTitle}>Offline Symptom Matches</Text>
               </View>
               <Text style={styles.aiSectionQuery} numberOfLines={2}>For: “{aiResult.query}”</Text>
               {aiResult.diagnoses.map((d, i) => (
@@ -452,7 +453,7 @@ export default function FixMyCarScreen() {
                   key={`ai-${i}`}
                   suggestion={aiToSuggestion(d, i)}
                   featured={i === 0}
-                  featuredLabel="AI Top Match"
+                  featuredLabel="Top Local Match"
                   confidence={d.confidence}
                 />
               ))}

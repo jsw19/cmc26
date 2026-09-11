@@ -22,9 +22,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SeverityBadge } from '../../src/components/SeverityBadge';
 import { useSellingPrice } from '../../src/hooks/useSellingPrice';
-import { analyzeVehicleImage } from '../../src/sdk/analyze';
+import { analyzeVehicleImageLocally } from '../../src/sdk/analyzeLocal';
 import { decodeVin } from '../../src/sdk/decodeVin';
-import { getAnthropicApiKey } from '../../src/utils/apiKey';
 import type {
   InspectionResult,
   PlatformListing,
@@ -119,14 +118,7 @@ function ScanCameraModal({
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      const apiKey = getAnthropicApiKey();
-
-      if (!apiKey) {
-        Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');
-        return;
-      }
-
-      const result = await analyzeVehicleImage(base64, savedUri, { apiKey, vehiclePart: part.id });
+      const result = await analyzeVehicleImageLocally(base64, savedUri, { vehiclePart: part.id });
       onResult(result);
       onClose();
     } catch (err) {
@@ -205,7 +197,7 @@ function ScanCameraModal({
             {analyzing ? (
               <View style={styles.analyzingBox}>
                 <ActivityIndicator size="large" color="#f59e0b" />
-                <Text style={styles.analyzingText}>Analyzing with AI...</Text>
+                <Text style={styles.analyzingText}>Analysing on-device...</Text>
               </View>
             ) : (
               <View style={styles.captureRow}>
@@ -247,7 +239,7 @@ function ScanConditionSection({
         <View style={[styles.derivedBanner, { borderColor: CONDITION_COLOR[derived] + '55', backgroundColor: CONDITION_COLOR[derived] + '10' }]}>
           <Ionicons name="camera" size={14} color={CONDITION_COLOR[derived]} />
           <Text style={[styles.derivedLabel, { color: CONDITION_COLOR[derived] }]}>
-            AI detected: {CONDITIONS.find((c) => c.value === derived)?.label} condition
+            Scan detected: {CONDITIONS.find((c) => c.value === derived)?.label} condition
           </Text>
           <Text style={styles.derivedSub}>({scannedCount} area{scannedCount > 1 ? 's' : ''} scanned)</Text>
           <TouchableOpacity onPress={onClear} style={styles.clearScansBtn}>
@@ -487,7 +479,7 @@ export default function SellScreen() {
 
   const derivedCondition = deriveSeverity(scanResults);
   const retakeCount = Object.values(scanResults).filter((r) => r?.requiresRetake).length;
-  // AI-derived condition takes priority; manual picker is the fallback
+  // Scan-derived condition takes priority; manual picker is the fallback
   const effectiveCondition = derivedCondition ?? manualCondition;
   const usingAI = derivedCondition !== null;
 
@@ -495,7 +487,7 @@ export default function SellScreen() {
     if (retakeCount > 0) {
       Alert.alert(
         'Retake scan first',
-        'One or more AI scans did not clearly show the vehicle area. Retake those photos before generating pricing so the condition estimate is trustworthy.',
+        'One or more scans did not clearly show the vehicle area. Retake those photos before generating pricing so the condition estimate is trustworthy.',
       );
       return;
     }
@@ -536,7 +528,7 @@ export default function SellScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>Sell Your Car</Text>
             <Text style={styles.subtitle}>
-              Scan your car for accurate AI-based condition detection, then get region-adjusted
+              Scan your car with on-device recognition, then get region-adjusted
               listing prices for FB Marketplace and Craigslist.
             </Text>
           </View>
@@ -545,7 +537,7 @@ export default function SellScreen() {
             <View style={styles.retakeNotice}>
               <Ionicons name="camera-outline" size={15} color="#f59e0b" />
               <Text style={styles.retakeNoticeText}>
-                {retakeCount} scan{retakeCount > 1 ? 's' : ''} need a retake before AI condition can safely drive pricing.
+                {retakeCount} scan{retakeCount > 1 ? 's' : ''} need a retake before the detected condition can safely drive pricing.
               </Text>
             </View>
           )}
@@ -658,7 +650,7 @@ export default function SellScreen() {
               {usingAI && (
                 <View style={styles.aiTag}>
                   <Ionicons name="camera" size={11} color="#3b82f6" />
-                  <Text style={styles.aiTagText}>AI Detected</Text>
+                  <Text style={styles.aiTagText}>Scan Detected</Text>
                 </View>
               )}
             </View>
@@ -669,7 +661,7 @@ export default function SellScreen() {
               onClear={() => setScanResults({})}
             />
 
-            {/* Manual picker — dimmed when AI is active */}
+            {/* Manual picker — dimmed when a scan result is active */}
             <View style={[styles.conditionRow, usingAI && styles.conditionRowDimmed]}>
               {CONDITIONS.map(({ value, label, desc }) => (
                 <TouchableOpacity
@@ -702,7 +694,7 @@ export default function SellScreen() {
             </View>
             {usingAI && (
               <Text style={styles.conditionNote}>
-                Condition set by AI scan. Tap Clear above to enter manually.
+                Condition set by the on-device scan. Tap Clear above to enter manually.
               </Text>
             )}
 
@@ -738,7 +730,7 @@ export default function SellScreen() {
               <Ionicons name="pricetag-outline" size={48} color="#222" />
               <Text style={styles.idleTitle}>Scan or enter condition above</Text>
               <Text style={styles.idleBody}>
-                Scan your car's areas for AI-detected condition accuracy, or pick condition
+                Scan your car's areas for on-device condition detection, or pick condition
                 manually. We'll calculate region-adjusted prices for each platform.
               </Text>
             </View>

@@ -235,7 +235,7 @@ export function buildInspectionReportHtml(
   ${recBlock}
 
   <div class="footer">
-    This report is AI-generated for informational purposes only. Always consult a qualified
+    This report uses on-device visual recognition and is for informational purposes only. Always consult a qualified
     mechanic before making repair or purchase decisions.
   </div>
 </body>

@@ -7,7 +7,15 @@
       "Bash(node:*)",
       "Bash(git -C C:/Users/wjsd7/Projects/checkmycar log --oneline --since=\"7 days ago\")",
       "Bash(npx expo *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(echo \"exit $?\")",
+      "Bash(git mv *)",
+      "Bash(curl -s --max-time 15 \"https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValues/1HGCM82633A004352?format=json\")",
+      "Bash(npm test *)",
+      "Skill(claude-api)",
+      "PowerShell(npx tsc --noEmit)",
+      "PowerShell(npm test *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

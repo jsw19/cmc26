@@ -12,10 +12,8 @@ import {
   View,
 } from 'react-native';
 import { useInspection } from '../src/context/InspectionContext';
-import { analyzeVehicleImage } from '../src/sdk/analyze';
 import { analyzeVehicleImageLocally } from '../src/sdk/analyzeLocal';
 import type { VehiclePart } from '../src/sdk/types';
-import { getAnthropicApiKey } from '../src/utils/apiKey';
 import { preprocessImage } from '../src/utils/preprocessImage';
 
 const PART_GUIDES: Record<string, { title: string; hint: string; target: string }> = {
@@ -59,12 +57,11 @@ const PART_GUIDES: Record<string, { title: string; hint: string; target: string 
 
 export default function CameraScreen() {
   const router = useRouter();
-  const { vehiclePart = 'unknown' } = useLocalSearchParams<{ vehiclePart: string }>();
+  const { vehiclePart = 'unknown', sessionId } = useLocalSearchParams<{ vehiclePart: string; sessionId?: string }>();
   const [permission, requestPermission] = useCameraPermissions();
   const [analyzing, setAnalyzing] = useState(false);
-  const [useLocal, setUseLocal] = useState(true);
   const cameraRef = useRef<CameraView>(null);
-  const { addResult, setPendingResult } = useInspection();
+  const { addResult, setPendingResult, sessions, loading, loadError } = useInspection();
 
   const guide = PART_GUIDES[vehiclePart] ?? {
     title: 'Vehicle Inspection',
@@ -75,32 +72,19 @@ export default function CameraScreen() {
   const analyzeImageUri = async (imageUri: string) => {
     try {
       setAnalyzing(true);
+      if (loadError || loading) throw new Error(loadError ?? 'Saved inspections are still loading.');
+      if (sessionId && !sessions.some(s => s.id === sessionId && s.status === 'draft')) throw new Error('Reopen the vehicle inspection before adding a photo.');
 
       const { savedUri, base64 } = await preprocessImage(
         imageUri,
         `${Date.now()}.jpg`,
       );
 
-      let result;
-      if (useLocal) {
-        result = await analyzeVehicleImageLocally(base64, savedUri, {
-          vehiclePart: vehiclePart as VehiclePart,
-        });
-      } else {
-        const apiKey = getAnthropicApiKey();
+      const result = await analyzeVehicleImageLocally(base64, savedUri, {
+        vehiclePart: vehiclePart as VehiclePart,
+      });
 
-        if (!apiKey) {
-          Alert.alert('API Key Missing', 'Set EXPO_PUBLIC_ANTHROPIC_API_KEY in your .env file.');
-          setAnalyzing(false);
-          return;
-        }
-
-        result = await analyzeVehicleImage(base64, savedUri, {
-          apiKey,
-          vehiclePart: vehiclePart as VehiclePart,
-        });
-      }
-
+      result.sessionId = sessionId;
       await addResult(result);
       setPendingResult(result);
 
@@ -193,24 +177,8 @@ export default function CameraScreen() {
         {/* Bottom controls */}
         <View style={styles.bottomBar}>
           <Text style={styles.hint}>{guide.hint}</Text>
-          {/* Mode toggle */}
           <View style={styles.modeToggle}>
-            <TouchableOpacity
-              style={[styles.modeBtn, useLocal && styles.modeBtnActive]}
-              onPress={() => setUseLocal(true)}
-            >
-              <Text style={[styles.modeBtnText, useLocal && styles.modeBtnTextActive]}>
-                On-Device Scan
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modeBtn, !useLocal && styles.modeBtnActive]}
-              onPress={() => setUseLocal(false)}
-            >
-              <Text style={[styles.modeBtnText, !useLocal && styles.modeBtnTextActive]}>
-                AI Scan
-              </Text>
-            </TouchableOpacity>
+            <Text style={[styles.modeBtnText, styles.modeBtnTextActive]}>Private on-device scan</Text>
           </View>
 
           <View style={styles.controls}>
@@ -218,7 +186,7 @@ export default function CameraScreen() {
               <View style={styles.analyzingContainer}>
                 <ActivityIndicator size="large" color="#3b82f6" />
                 <Text style={styles.analyzingText}>
-                  {useLocal ? 'Analysing on-device...' : 'Analyzing with AI...'}
+                  Analysing on-device...
                 </Text>
               </View>
             ) : (

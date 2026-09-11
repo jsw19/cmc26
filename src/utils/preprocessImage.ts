@@ -3,7 +3,7 @@
  *
  * Single entry point for all pre-analysis image preparation. Every capture
  * path (live camera, photo picker, buyercheck scan) should go through here
- * before the image is handed to the Claude API or the local HSV analyser.
+ * before the image is handed to the local recognition engine.
  *
  * What it does:
  *  1. EXIF orientation normalisation — ImageManipulator re-renders the image
@@ -14,7 +14,7 @@
  *  3. Persist — saves the processed JPEG to the app's inspections/ directory
  *     so the URI survives across navigation and session restarts.
  *  4. Base64 — reads the saved file back as base64 (no data-URI prefix) ready
- *     for the Claude API image block or jpeg-js decoding.
+ *     for jpeg-js decoding.
  */
 
 import * as FileSystem from 'expo-file-system/legacy';

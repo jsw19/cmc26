@@ -46,7 +46,7 @@ export default function HomeScreen({ onSeeAllHistory }: { onSeeAllHistory?: () =
         <View style={styles.header}>
           <View>
             <Text style={styles.title}>CheckMyCar</Text>
-            <Text style={styles.subtitle}>AI-powered vehicle inspection</Text>
+            <Text style={styles.subtitle}>Private on-device vehicle inspection</Text>
           </View>
           <View style={styles.carIcon}>
             <Ionicons name="car" size={28} color="#3b82f6" />
@@ -54,6 +54,13 @@ export default function HomeScreen({ onSeeAllHistory }: { onSeeAllHistory?: () =
         </View>
 
         {/* Quick start */}
+        <TouchableOpacity style={styles.buyerCard} onPress={() => router.push('/vehicle-inspections')}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.buyerCardTitle}>Inspect a whole vehicle</Text>
+            <Text style={styles.buyerCardDesc}>Multiple photos · Resume anytime · Combined report</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#5eead4" />
+        </TouchableOpacity>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>New Inspection</Text>
           <Text style={styles.sectionSubtitle}>Select the area you want to inspect</Text>

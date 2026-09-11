@@ -2,11 +2,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet, Text, View, FlatList, Alert, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { InspectionCard } from '../components/InspectionCard';
-import { HistoryBannerAd } from '../components/HistoryBannerAd';
 import { useInspection } from '../context/InspectionContext';
+import { useRouter } from 'expo-router';
 
 export default function HistoryScreen() {
-  const { history, removeResult, loading } = useInspection();
+  const { history, removeResult, loading, loadError } = useInspection();
+  const router = useRouter();
 
   const handleClearAll = () => {
     Alert.alert('Clear History', 'Delete all inspections? This cannot be undone.', [
@@ -14,7 +15,10 @@ export default function HistoryScreen() {
       {
         text: 'Delete All',
         style: 'destructive',
-        onPress: () => history.forEach((r) => removeResult(r.id)),
+        onPress: async () => {
+          try { for (const result of history) await removeResult(result.id); }
+          catch { Alert.alert('Delete failed', 'Some inspections could not be deleted. Please try again.'); }
+        },
       },
     ]);
   };
@@ -40,6 +44,11 @@ export default function HistoryScreen() {
         )}
       </View>
 
+      {loadError && <Text style={styles.clearText}>{loadError}</Text>}
+      <TouchableOpacity style={{ padding: 20 }} onPress={() => router.push('/vehicle-inspections')}>
+        <Text style={{ color: '#5eead4' }}>Vehicle inspections and combined reports</Text>
+      </TouchableOpacity>
+
       {history.length === 0 ? (
         <View style={styles.centered}>
           <Ionicons name="time-outline" size={48} color="#444" />
@@ -57,7 +66,6 @@ export default function HistoryScreen() {
           showsVerticalScrollIndicator={false}
         />
       )}
-      <HistoryBannerAd />
     </SafeAreaView>
   );
 }
