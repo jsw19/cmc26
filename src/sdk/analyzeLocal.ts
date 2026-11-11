@@ -31,6 +31,7 @@
 
 import jpeg from 'jpeg-js';
 import { getLocalLstmModel, predictLocalLstm } from './lstm.ts';
+import { extractVitPatches, getLocalVitModel, predictLocalVit } from './vit.ts';
 import type {
   AnalyzeLocalOptions,
   DamageItem,
@@ -747,6 +748,21 @@ export async function analyzeVehicleImageLocally(
         confidence: scores[index],
         location: 'across the analysed area',
         description: `Possible ${label.type} flagged by local LSTM model ${model.id}; confirm by inspection.`,
+      });
+    });
+  }
+
+  const vit = getLocalVitModel();
+  if (vit && vit.vehicleParts.includes(vehiclePart)) {
+    const scores = predictLocalVit(vit, extractVitPatches(data as Uint8Array, width, height, vit));
+    vit.labels.forEach((label, index) => {
+      if (scores[index] < label.threshold) return;
+      damages.push({
+        type: label.type,
+        severity: label.severity,
+        confidence: scores[index],
+        location: 'across the analysed area',
+        description: `Possible ${label.type} flagged by local ViT model ${vit.id}; confirm by inspection.`,
       });
     });
   }
