@@ -24,8 +24,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0f0f0f"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#0b1018"
       },
       "package": "com.ashen728.checkmycar",
       "versionCode": 1,
@@ -56,7 +56,8 @@
           "photosPermission": "CheckMyCar accesses your photo library to analyze vehicle images."
         }
       ],
-      "expo-font"
+      "expo-font",
+      "./plugins/withLauncherIconPadding"
     ],
     "experiments": {
       "typedRoutes": true

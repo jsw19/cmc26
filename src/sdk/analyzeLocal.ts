@@ -30,6 +30,7 @@
  */
 
 import jpeg from 'jpeg-js';
+import { getLocalLstmModel, predictLocalLstm } from './lstm.ts';
 import type {
   AnalyzeLocalOptions,
   DamageItem,
@@ -728,6 +729,26 @@ export async function analyzeVehicleImageLocally(
   if (PANEL_PARTS.has(vehiclePart)) {
     const anomaly = detectSurfaceAnomaly(cells);
     if (anomaly) damages.push(anomaly);
+  }
+
+  // A trained model can add whole-image findings. Grid sequence state resets
+  // per photo; these predictions do not provide defect bounding boxes.
+  const model = getLocalLstmModel();
+  if (model && model.vehicleParts.includes(vehiclePart)) {
+    const features = cells.map(c => [
+      c.rust, c.dark, c.coolant, c.sumLum, c.sumSat, c.sumVal, c.edge,
+    ].map(value => safeRatio(value, c.analysable)));
+    const scores = predictLocalLstm(model, features);
+    model.labels.forEach((label, index) => {
+      if (scores[index] < label.threshold) return;
+      damages.push({
+        type: label.type,
+        severity: label.severity,
+        confidence: scores[index],
+        location: 'across the analysed area',
+        description: `Possible ${label.type} flagged by local LSTM model ${model.id}; confirm by inspection.`,
+      });
+    });
   }
 
   const overallSeverity = pickOverallSeverity(damages.map((d) => d.severity));

@@ -1,4 +1,6 @@
 export { analyzeVehicleImageLocally } from './analyzeLocal';
+export { configureLocalLstm, predictLocalLstm, validateLocalLstmModel, LSTM_FEATURES } from './lstm';
+export type { LocalLstmModel } from './lstm';
 export { decodeVin, isValidVin, normalizeVin } from './decodeVin';
 export type { DecodeVinOptions, VinDecodeResult } from './decodeVin';
 export { diagnoseProblemLocally } from './diagnoseProblemLocal';
